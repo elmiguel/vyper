@@ -1,0 +1,902 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vyper — Documentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg-0:#06060f; --bg-1:#0b0a1c; --bg-2:#100e26; --bg-3:#181436;
+    --border:#2a2358; --border-glow:#4d3fb0;
+    --text:#e6e9ff; --text-dim:#8a86c4;
+    --cyan:#22d3ee; --magenta:#ff2e97; --green:#3affc0; --purple:#b14aed; --blue:#4f7cff;
+    --warn:#ffcc44; --error:#ff3864;
+    --glow-cyan:0 0 6px rgba(34,211,238,.55),0 0 18px rgba(34,211,238,.25);
+    --glow-magenta:0 0 6px rgba(255,46,151,.55),0 0 18px rgba(255,46,151,.25);
+    --radius:10px;
+    --mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:smooth; }
+
+  /* Themed scrollbars — match the editor's neon gradient thumb */
+  html { scrollbar-color: var(--purple) transparent; scrollbar-width: thin; }
+  ::-webkit-scrollbar { width:10px; height:10px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb {
+    background:linear-gradient(var(--purple),var(--cyan));
+    border-radius:6px; border:2px solid transparent; background-clip:padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background:var(--cyan); }
+  ::-webkit-scrollbar-corner { background:transparent; }
+  body {
+    margin:0; background:var(--bg-0); color:var(--text);
+    font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    line-height:1.6; font-size:15px;
+  }
+  body::before {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:
+      radial-gradient(900px 600px at 12% -8%, rgba(255,46,151,.16), transparent 60%),
+      radial-gradient(1000px 700px at 100% 110%, rgba(34,211,238,.16), transparent 60%),
+      linear-gradient(transparent 0,transparent calc(100% - 1px),rgba(77,63,176,.10) 100%),
+      linear-gradient(90deg,transparent 0,transparent calc(100% - 1px),rgba(77,63,176,.10) 100%);
+    background-size:100% 100%,100% 100%,100% 44px,44px 100%;
+  }
+  body::after {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:0;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0,rgba(0,0,0,.16) 1px,transparent 2px,transparent 4px);
+    opacity:.3; mix-blend-mode:overlay;
+  }
+  .wrap { position:relative; z-index:1; display:grid; grid-template-columns:248px 1fr; max-width:1280px; margin:0 auto; }
+
+  /* ---- Sidebar ---- */
+  nav.side {
+    position:sticky; top:0; align-self:start; height:100vh; overflow-y:auto;
+    padding:26px 18px 40px; border-right:1px solid var(--border);
+    background:linear-gradient(180deg,rgba(24,20,54,.55),rgba(11,10,28,.35));
+  }
+  .brand { display:flex; align-items:center; gap:10px; font-family:'Orbitron',sans-serif;
+    font-weight:800; letter-spacing:2px; text-transform:uppercase; font-size:17px; margin-bottom:4px;
+    background:linear-gradient(90deg,var(--magenta),var(--cyan));
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .brand-dot { width:13px; height:13px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%,#fff,var(--cyan) 45%,var(--magenta));
+    box-shadow:0 0 10px var(--cyan),0 0 18px var(--magenta); }
+  .side .tag { color:var(--text-dim); font-size:11px; letter-spacing:1px; text-transform:uppercase; margin:0 0 22px 23px; }
+  nav.side a { display:block; color:var(--text-dim); text-decoration:none; padding:5px 10px; border-radius:6px;
+    font-size:13.5px; border-left:2px solid transparent; transition:.15s; }
+  nav.side a:hover { color:var(--text); background:rgba(34,211,238,.07); border-left-color:var(--cyan); }
+  nav.side .grp { color:var(--text); font-weight:700; font-size:11px; letter-spacing:1.4px; text-transform:uppercase;
+    margin:20px 0 6px 10px; opacity:.65; }
+
+  /* ---- Main ---- */
+  main { padding:0 52px 120px; min-width:0; }
+  section { padding-top:38px; }
+  .hero { padding:66px 0 30px; border-bottom:1px solid var(--border); }
+  .hero h1 { font-family:'Orbitron',sans-serif; font-size:46px; line-height:1.05; margin:0 0 14px; font-weight:900;
+    background:linear-gradient(90deg,var(--magenta),var(--purple) 40%,var(--cyan));
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  .hero p.lede { font-size:19px; color:var(--text); max-width:680px; }
+  .hero p.sub { color:var(--text-dim); max-width:680px; }
+  h2 { font-family:'Orbitron',sans-serif; font-size:26px; margin:6px 0 6px; letter-spacing:.5px;
+    border-left:4px solid var(--cyan); padding-left:14px; }
+  h3 { font-size:18px; margin:26px 0 8px; color:#fff; }
+  h4 { font-size:14px; text-transform:uppercase; letter-spacing:1px; color:var(--cyan); margin:20px 0 6px; }
+  a { color:var(--cyan); }
+  p { color:#cfd2ff; }
+  code { font-family:var(--mono); font-size:.86em; background:rgba(177,74,237,.14); color:#e8d6ff;
+    padding:2px 6px; border-radius:5px; border:1px solid rgba(177,74,237,.3); }
+  pre { background:linear-gradient(180deg,#0c0a22,#0a0918); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px 18px; overflow-x:auto; box-shadow:inset 0 0 30px rgba(34,211,238,.05); }
+  pre code { background:none; border:none; padding:0; color:#d7e7ff; font-size:13px; line-height:1.7; }
+  .tok-k { color:var(--magenta); } .tok-f { color:var(--cyan); } .tok-s { color:var(--green); }
+  .tok-c { color:#5d6296; font-style:italic; } .tok-n { color:#ffd24f; }
+
+  .card { background:linear-gradient(180deg,rgba(24,20,54,.5),rgba(11,10,28,.4)); border:1px solid var(--border);
+    border-radius:var(--radius); padding:20px 22px; margin:16px 0; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; }
+  @media (max-width:900px){ .grid2,.grid3{grid-template-columns:1fr;} .wrap{grid-template-columns:1fr;} nav.side{display:none;} main{padding:0 22px 80px;} }
+
+  .pill { display:inline-block; font-size:11px; font-weight:600; letter-spacing:.5px; padding:2px 9px; border-radius:20px;
+    text-transform:uppercase; }
+  .pill.event { color:var(--magenta); border:1px solid var(--magenta); box-shadow:var(--glow-magenta); }
+  .pill.action { color:var(--cyan); border:1px solid var(--cyan); box-shadow:var(--glow-cyan); }
+  .pill.value { color:var(--green); border:1px solid var(--green); box-shadow:0 0 6px rgba(58,255,192,.5); }
+  .pill.physics { color:#ff7043; border:1px solid #ff7043; box-shadow:0 0 6px rgba(255,112,67,.5); }
+  .pill.objective { color:#b07bff; border:1px solid #b07bff; box-shadow:0 0 6px rgba(176,123,255,.5); }
+  .pill.fx { color:#ff5bd1; border:1px solid #ff5bd1; box-shadow:0 0 6px rgba(255,91,209,.5); }
+  .pill.asset { color:#ffb454; border:1px solid #ffb454; box-shadow:0 0 6px rgba(255,180,84,.5); }
+
+  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:13.5px; }
+  th,td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); }
+  th { color:var(--cyan); font-size:11px; text-transform:uppercase; letter-spacing:1px; }
+  td:first-child { color:#fff; font-weight:500; }
+  tr:hover td { background:rgba(34,211,238,.04); }
+  kbd { font-family:var(--mono); font-size:12px; background:#181436; border:1px solid var(--border-glow);
+    border-bottom-width:2px; border-radius:5px; padding:2px 7px; color:#fff; box-shadow:0 1px 0 rgba(0,0,0,.4); white-space:nowrap; }
+  .kbd-or { color:var(--text-dim); font-size:11px; margin:0 4px; }
+
+  .steps { counter-reset:step; list-style:none; padding:0; margin:14px 0; }
+  .steps li { position:relative; padding:6px 0 14px 44px; }
+  .steps li::before { counter-increment:step; content:counter(step); position:absolute; left:0; top:2px;
+    width:28px; height:28px; border-radius:50%; display:grid; place-items:center; font-weight:700; font-size:13px;
+    color:var(--bg-0); background:linear-gradient(135deg,var(--cyan),var(--green)); box-shadow:var(--glow-cyan); }
+  .steps li::after { content:''; position:absolute; left:13px; top:32px; bottom:0; width:2px; background:var(--border); }
+  .steps li:last-child::after { display:none; }
+
+  .note { border-left:3px solid var(--warn); background:rgba(255,204,68,.07); padding:12px 16px; border-radius:0 8px 8px 0; margin:14px 0; }
+  .note.cyan { border-left-color:var(--cyan); background:rgba(34,211,238,.07); }
+  .note b { color:#fff; }
+
+  figure { margin:18px 0; }
+  figure svg { width:100%; height:auto; display:block; border:1px solid var(--border); border-radius:var(--radius);
+    background:linear-gradient(180deg,#0a0820,#080714); }
+  figcaption { color:var(--text-dim); font-size:12.5px; text-align:center; margin-top:8px; }
+  .svglabel { font:600 12px 'Inter',sans-serif; fill:#cfd2ff; }
+  .svgsub { font:11px 'Inter',sans-serif; fill:#8a86c4; }
+  .svgmono { font:12px 'JetBrains Mono',monospace; }
+
+  .feat { display:flex; gap:13px; align-items:flex-start; }
+  .feat .dot { flex:0 0 auto; width:9px; height:9px; border-radius:50%; margin-top:8px; background:var(--cyan); box-shadow:var(--glow-cyan); }
+  footer { border-top:1px solid var(--border); margin-top:60px; padding-top:24px; color:var(--text-dim); font-size:13px; }
+  .top { position:fixed; right:26px; bottom:26px; z-index:10; background:var(--bg-3); border:1px solid var(--border-glow);
+    border-radius:50%; width:44px; height:44px; display:grid; place-items:center; color:var(--cyan); text-decoration:none; font-size:20px;
+    box-shadow:var(--glow-cyan); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <nav class="side">
+    <div class="brand"><span class="brand-dot"></span> Vyper</div>
+    <p class="tag">Documentation</p>
+
+    <div class="grp">Getting started</div>
+    <a href="#overview">Overview</a>
+    <a href="#run">Install &amp; run</a>
+    <a href="#dimensions">2D &amp; 3D games</a>
+    <a href="#workspace">The workspace</a>
+    <a href="#tour">Guided tour</a>
+    <a href="#firstgame">Make your first scene</a>
+
+    <div class="grp">Building scenes</div>
+    <a href="#objects">Adding objects</a>
+    <a href="#transform">Transform &amp; gizmos</a>
+    <a href="#inspector">The Inspector</a>
+    <a href="#hierarchy">Hierarchy &amp; menus</a>
+    <a href="#camera">Game camera &amp; preview</a>
+    <a href="#physics">Physics</a>
+    <a href="#effects">Effects (VFX)</a>
+    <a href="#hud">HUD editor</a>
+
+    <div class="grp">Game design</div>
+    <a href="#goals">Goals &amp; objectives</a>
+
+    <div class="grp">Scripting</div>
+    <a href="#scripting">Behaviours overview</a>
+    <a href="#nodes">Visual node graph</a>
+    <a href="#catalog">Node catalog</a>
+    <a href="#roundtrip">Node ↔ Code</a>
+    <a href="#api">Scripting API</a>
+
+    <div class="grp">Run &amp; debug</div>
+    <a href="#play">Play / Pause / Stop</a>
+    <a href="#debugger">Debugger console</a>
+    <a href="#bjs">Babylon Inspector</a>
+
+    <div class="grp">Reference</div>
+    <a href="#shortcuts">Keyboard shortcuts</a>
+    <a href="#history">Undo, redo, clipboard</a>
+  </nav>
+
+  <!-- ===================== MAIN ===================== -->
+  <main>
+    <header class="hero" id="overview">
+      <h1>Vyper Game Editor</h1>
+      <p class="lede">A browser-based <b>3D &amp; 2D</b> game editor that pairs a <b>Babylon.js</b> engine with a React UI — author entity behaviour with a visual <b>node graph</b> or hand-written <b>JavaScript</b>, and switch between them at any time. With rigid-body <b>physics</b>, particle <b>effects</b>, a <b>HUD</b> editor, one-click <b>players</b>, and a <b>goals</b> system that ties it all to your game's objectives.</p>
+      <p class="sub">This guide documents everything the editor can do today, with diagrams and step-by-step how-tos. Everything runs entirely in your browser — no build step, no accounts, no backend.</p>
+    </header>
+
+    <section id="run">
+      <h2>Install &amp; run</h2>
+      <pre><code><span class="tok-c"># install dependencies</span>
+npm install
+
+<span class="tok-c"># start the dev server → http://localhost:5173</span>
+npm run dev
+
+<span class="tok-c"># type-check + production bundle</span>
+npm run build
+
+<span class="tok-c"># headless smoke test of codegen + runtime compile</span>
+npx tsx scripts/smoke.ts</code></pre>
+      <p>The editor opens with a starter scene: a <b>Sun</b> (directional light), a <b>Ground</b> plane, and a <b>Player</b> box. You can start editing immediately.</p>
+    </section>
+
+    <!-- ============ 2D & 3D ============ -->
+    <section id="dimensions">
+      <h2>2D &amp; 3D games</h2>
+      <p>When you create a game on the Home screen, you pick its type — <b>3D</b> or <b>2D</b>. The choice is saved with the game and shown as a badge on its card. The <em>same</em> editor and workflow are used either way; only the camera, rendering and tooling auto-configure to match.</p>
+      <figure>
+        <svg viewBox="0 0 960 250" role="img" aria-label="2D vs 3D setup">
+          <!-- 3D -->
+          <rect x="40" y="30" width="400" height="190" rx="10" fill="#0a0820" stroke="#22d3ee"/>
+          <text x="60" y="58" class="svglabel" fill="#22d3ee">3D — perspective</text>
+          <line x1="90" y1="180" x2="410" y2="180" stroke="#2a2358"/>
+          <line x1="90" y1="180" x2="150" y2="120" stroke="#2a2358"/>
+          <line x1="410" y1="180" x2="350" y2="120" stroke="#2a2358"/>
+          <path d="M210,150 l40,-18 l40,18 l0,36 l-40,18 l-40,-18 Z" fill="#4f9bff" opacity=".8"/>
+          <path d="M210,150 l40,-18 l40,18 l-40,18 Z" fill="#6fb0ff" opacity=".9"/>
+          <text x="240" y="208" class="svgsub" text-anchor="middle">orbit camera · lit solids · XZ floor grid</text>
+
+          <!-- 2D -->
+          <rect x="520" y="30" width="400" height="190" rx="10" fill="#0a0820" stroke="#3affc0"/>
+          <text x="540" y="58" class="svglabel" fill="#3affc0">2D — orthographic</text>
+          <g stroke="#173a30">
+            <line x1="560" y1="80" x2="560" y2="195"/><line x1="620" y1="80" x2="620" y2="195"/>
+            <line x1="680" y1="80" x2="680" y2="195"/><line x1="740" y1="80" x2="740" y2="195"/>
+            <line x1="800" y1="80" x2="800" y2="195"/><line x1="860" y1="80" x2="860" y2="195"/>
+            <line x1="540" y1="100" x2="900" y2="100"/><line x1="540" y1="140" x2="900" y2="140"/><line x1="540" y1="180" x2="900" y2="180"/>
+          </g>
+          <rect x="660" y="120" width="40" height="40" fill="#4f9bff" opacity=".9"/>
+          <circle cx="780" cy="140" r="20" fill="#ff2e97" opacity=".85"/>
+          <text x="720" y="210" class="svgsub" text-anchor="middle">head-on camera · flat shapes · XY grid</text>
+        </svg>
+        <figcaption>One workspace, two render setups. Switching type is per-game; everything else is identical.</figcaption>
+      </figure>
+      <table>
+        <tr><th>Aspect</th><th>3D</th><th>2D</th></tr>
+        <tr><td>Editor camera</td><td>Orbit (perspective) — drag to rotate, wheel to zoom.</td><td>Orthographic, head-on. Orbit is locked; wheel zooms, Ctrl/middle-drag pans.</td></tr>
+        <tr><td>Game camera</td><td>Free perspective rig you position anywhere.</td><td>Orthographic frame that pans in X/Y at a fixed depth.</td></tr>
+        <tr><td>Shapes</td><td>box · sphere · cylinder · cone · plane · ground</td><td>square · circle · triangle · plane</td></tr>
+        <tr><td>Lighting</td><td>Lights + lit materials.</td><td>Flat, unlit fills — no lights required.</td></tr>
+        <tr><td>Grid</td><td>On the XZ floor.</td><td>On the XY plane, facing you.</td></tr>
+        <tr><td>Gizmos</td><td>Full X/Y/Z.</td><td>Constrained to the plane (no Z-move, Z-only rotate, no Z-scale).</td></tr>
+      </table>
+      <div class="note cyan">Scripting is identical in both modes — entities still have <code>position</code>, <code>rotation</code>, <code>props</code> and the same API. In 2D you simply work in X/Y (Z is depth/layering).</div>
+    </section>
+
+    <!-- ============ WORKSPACE ============ -->
+    <section id="workspace">
+      <h2>The workspace</h2>
+      <p>Vyper is a fully resizable six-pane workspace. Drag any divider to resize; layouts persist between sessions.</p>
+      <figure>
+        <svg viewBox="0 0 960 540" role="img" aria-label="Editor layout diagram">
+          <!-- toolbar -->
+          <rect x="12" y="12" width="936" height="46" rx="6" fill="#140f33" stroke="#2a2358"/>
+          <circle cx="34" cy="35" r="6" fill="#22d3ee"/>
+          <text x="48" y="40" class="svglabel" fill="#ff2e97">VYPER</text>
+          <text x="240" y="40" class="svgsub">Mesh+ · Light+ · ◻▣◑⬚ · ↶↷</text>
+          <text x="930" y="40" class="svgsub" text-anchor="end">▶❚❚■ · EDITING · Maya · Inspector · ? · Guide · Docs</text>
+
+          <!-- hierarchy -->
+          <rect x="12" y="68" width="170" height="460" rx="6" fill="#0f0c28" stroke="#2a2358"/>
+          <text x="26" y="92" class="svglabel">Hierarchy</text>
+          <text x="26" y="114" class="svgsub">▸ Sun</text>
+          <text x="26" y="134" class="svgsub">▸ Ground</text>
+          <text x="26" y="154" class="svgsub" fill="#22d3ee">▸ Player ⟨/⟩</text>
+          <text x="26" y="184" class="svgsub">Editor</text>
+          <text x="26" y="204" class="svgsub">▸ Game Camera</text>
+          <text x="26" y="224" class="svgsub">▸ Grid</text>
+          <text x="98" y="514" class="svgsub" text-anchor="middle">scene tree</text>
+
+          <!-- ===== center column: viewports row ===== -->
+          <!-- scene viewport -->
+          <rect x="192" y="68" width="358" height="210" rx="6" fill="#0a0820" stroke="#22d3ee"/>
+          <text x="206" y="90" class="svglabel" fill="#22d3ee">Scene · editor camera</text>
+          <rect x="252" y="150" width="70" height="60" fill="#4f9bff" opacity=".75"/>
+          <line x1="206" y1="252" x2="536" y2="252" stroke="#2a2358"/>
+          <text x="371" y="270" class="svgsub" text-anchor="middle">grid · gizmos · click-to-pick</text>
+
+          <!-- game preview -->
+          <rect x="558" y="68" width="212" height="210" rx="6" fill="#0a0820" stroke="#ff2e97"/>
+          <text x="572" y="90" class="svglabel" fill="#ff2e97">Game · play camera</text>
+          <rect x="628" y="150" width="62" height="52" fill="#4f9bff" opacity=".75"/>
+          <text x="664" y="262" class="svgsub" text-anchor="middle">▶ Play</text>
+
+          <!-- script editor -->
+          <rect x="192" y="288" width="578" height="158" rx="6" fill="#0c0a22" stroke="#b14aed"/>
+          <text x="206" y="310" class="svglabel" fill="#b14aed">Script Editor</text>
+          <text x="206" y="330" class="svgsub">[ Nodes | Code ]  — visual graph or JavaScript</text>
+          <rect x="220" y="346" width="80" height="34" rx="4" fill="none" stroke="#ff2e97"/>
+          <rect x="340" y="346" width="80" height="34" rx="4" fill="none" stroke="#22d3ee"/>
+          <line x1="300" y1="363" x2="340" y2="363" stroke="#3affc0" stroke-width="2"/>
+          <text x="481" y="430" class="svgsub" text-anchor="middle">behaviours per entity</text>
+
+          <!-- console -->
+          <rect x="192" y="456" width="578" height="72" rx="6" fill="#0c0a22" stroke="#2a2358"/>
+          <text x="206" y="478" class="svglabel">Debugger</text>
+          <text x="206" y="500" class="svgsub" fill="#3affc0">60 fps · 4 meshes</text>
+          <text x="380" y="500" class="svgsub">log info warn error debug</text>
+
+          <!-- ===== inspector: full-height right column ===== -->
+          <rect x="778" y="68" width="170" height="460" rx="6" fill="#0f0c28" stroke="#2a2358"/>
+          <text x="792" y="92" class="svglabel">Inspector</text>
+          <text x="792" y="120" class="svgsub">Transform</text>
+          <text x="792" y="142" class="svgsub">Mesh / Light</text>
+          <text x="792" y="164" class="svgsub">Properties</text>
+          <text x="792" y="186" class="svgsub">Scripts</text>
+          <text x="863" y="514" class="svgsub" text-anchor="middle">live values</text>
+        </svg>
+        <figcaption>Three columns: Hierarchy · the center stack (viewports, script editor, debugger) · a full-height Inspector. Every divider is draggable; panel sizes are remembered across reloads.</figcaption>
+      </figure>
+
+      <div class="grid2">
+        <div class="card"><div class="feat"><span class="dot"></span><div><b>Hierarchy</b> — scene tree. Add, duplicate, delete and select entities; toggle the grid; reach the Game Camera.</div></div></div>
+        <div class="card"><div class="feat"><span class="dot" style="background:var(--cyan)"></span><div><b>Scene viewport</b> — the editor camera with a grid, click-to-select picking and transform gizmos.</div></div></div>
+        <div class="card"><div class="feat"><span class="dot" style="background:var(--magenta)"></span><div><b>Game preview</b> — the same scene through the play camera, with an inline Play button.</div></div></div>
+        <div class="card"><div class="feat"><span class="dot" style="background:var(--purple)"></span><div><b>Script editor</b> — per-entity behaviours, switchable between Nodes and Code.</div></div></div>
+        <div class="card"><div class="feat"><span class="dot" style="background:var(--green)"></span><div><b>Debugger</b> — live console, level filters, repeat-collapsing and FPS / mesh counters.</div></div></div>
+        <div class="card"><div class="feat"><span class="dot" style="background:var(--blue)"></span><div><b>Inspector</b> — transform, mesh/light props, custom properties and attached behaviours; live while playing.</div></div></div>
+      </div>
+    </section>
+
+    <!-- ============ GUIDED TOUR ============ -->
+    <section id="tour">
+      <h2>Guided tour</h2>
+      <p>New to Vyper? Click <b style="color:var(--magenta)">Guide</b> in the toolbar to launch an interactive walkthrough that spotlights every area in turn — adding objects, transform tools, the Hierarchy, both viewports, the transport controls, the behaviour editor, the Debugger, the Inspector, keyboard layouts and the Babylon Inspector.</p>
+      <ul>
+        <li>Use <b>Next</b> / <b>Back</b> to step through, or <b>Skip tour</b> to exit at any point.</li>
+        <li>The tour auto-selects an object so the Inspector step has live content.</li>
+        <li>Replay it anytime from the same Guide button.</li>
+      </ul>
+      <div class="note cyan">Prefer reading? You're in the right place — and the <b>Docs</b> button in the toolbar reopens this page whenever you need it.</div>
+    </section>
+
+    <!-- ============ FIRST GAME ============ -->
+    <section id="firstgame">
+      <h2>Make your first scene</h2>
+      <ol class="steps">
+        <li><b>Add an object.</b> Click <code>Mesh +</code> in the toolbar and pick <code>box</code> (or right-click the viewport → Add Mesh). It appears at the origin and is auto-selected.</li>
+        <li><b>Position it.</b> Press the Move tool, drag the gizmo arrows in the scene view, or type exact values into the Inspector's Transform fields.</li>
+        <li><b>Give it behaviour.</b> In the Inspector, click <code>+ Add Behaviour</code>. A starter node graph is attached that logs on start and spins the object on update.</li>
+        <li><b>Play.</b> Hit <kbd>▶</kbd> (or the Play button on the Game preview). The box spins; the Debugger prints “Entity spawned”.</li>
+        <li><b>Iterate.</b> Press Stop to return to the exact pre-play state, tweak the graph or code, and play again.</li>
+      </ol>
+    </section>
+
+    <!-- ============ OBJECTS ============ -->
+    <section id="objects">
+      <h2>Adding objects</h2>
+      <p>Add objects from the toolbar (<code>Mesh +</code> / <code>Shape +</code> · <code>Player +</code> · <code>Light +</code> · <code>FX +</code>), by right-clicking the viewport, or by right-clicking empty space in the Hierarchy. The menus adapt to the game's <a href="#dimensions">type</a>.</p>
+      <div class="grid2">
+        <div class="card">
+          <h4>3D primitives</h4>
+          <p><code>box</code> · <code>sphere</code> · <code>cylinder</code> · <code>cone</code> · <code>plane</code> · <code>ground</code> · <code>empty</code></p>
+          <p style="color:var(--text-dim);font-size:13px">Each mesh gets a cycling neon color and is placed at the origin (flush to the floor for <code>ground</code>/<code>plane</code>). <code>empty</code> is a transform-only node with no geometry — useful as a parent or marker.</p>
+        </div>
+        <div class="card">
+          <h4>2D shapes</h4>
+          <p><code>square</code> · <code>circle</code> · <code>triangle</code> · <code>plane</code> · <code>empty</code></p>
+          <p style="color:var(--text-dim);font-size:13px">Flat shapes lying in the XY plane, rendered unlit so they’re visible without any lights. Placed at the origin on the z=0 plane.</p>
+        </div>
+        <div class="card">
+          <h4><span style="color:#ffb454">Player</span> <span style="color:var(--text-dim);font-weight:400">— ready to drive</span></h4>
+          <p>One click drops a player object with <b>default movement controls already attached</b>. Hit Play and go.</p>
+          <p style="color:var(--text-dim);font-size:13px">2D players move on the XY plane with <kbd>WASD</kbd>/arrows; 3D players get a mouse-look third-person controller (move + look + jump). Tune speeds on the controller node, or swap in a first-person controller. See <a href="#scripting">behaviours</a> and the <a href="#catalog">controller nodes</a>.</p>
+        </div>
+        <div class="card">
+          <h4>Lights <span style="color:var(--text-dim);font-weight:400">(3D only)</span></h4>
+          <p><code>hemispheric</code> · <code>point</code> · <code>directional</code></p>
+          <p style="color:var(--text-dim);font-size:13px">Each light has an editable color and intensity. The 3D starter scene ships with a directional “Sun”. 2D games skip lighting entirely.</p>
+        </div>
+        <div class="card">
+          <h4><span style="color:#ff5bd1">FX</span> <span style="color:var(--text-dim);font-weight:400">— particle effects</span></h4>
+          <p>With an object selected, <code>FX +</code> attaches a particle effect from a preset (fire, smoke, explosion, sparkle…).</p>
+          <p style="color:var(--text-dim);font-size:13px">Tune it in the Inspector or trigger it from scripts. See <a href="#effects">Effects (VFX)</a>.</p>
+        </div>
+      </div>
+      <div class="note cyan"><b>Tip:</b> Duplicate the selected object with <kbd>⌘</kbd><kbd>D</kbd> (Maya/Unity) or copy/paste it — attached behaviours and effects are copied too, with fresh ids.</div>
+    </section>
+
+    <!-- ============ TRANSFORM ============ -->
+    <section id="transform">
+      <h2>Transform &amp; gizmos</h2>
+      <p>Four transform tools live in the toolbar. The active one drives the on-screen gizmo for the selected object.</p>
+      <figure>
+        <svg viewBox="0 0 960 230" role="img" aria-label="Transform tools">
+          <g transform="translate(70,40)">
+            <rect x="-30" y="-20" width="160" height="150" rx="10" fill="#0f0c28" stroke="#2a2358"/>
+            <circle cx="50" cy="55" r="5" fill="#cfd2ff"/>
+            <text x="50" y="120" text-anchor="middle" class="svglabel">Select</text>
+            <text x="50" y="-2" text-anchor="middle" class="svgsub">Q</text>
+          </g>
+          <g transform="translate(300,40)">
+            <rect x="-30" y="-20" width="160" height="150" rx="10" fill="#0f0c28" stroke="#22d3ee"/>
+            <line x1="50" y1="80" x2="50" y2="30" stroke="#3affc0" stroke-width="3" marker-end="url(#arr)"/>
+            <line x1="50" y1="80" x2="100" y2="80" stroke="#ff2e97" stroke-width="3" marker-end="url(#arr)"/>
+            <line x1="50" y1="80" x2="16" y2="100" stroke="#4f7cff" stroke-width="3" marker-end="url(#arr)"/>
+            <text x="50" y="120" text-anchor="middle" class="svglabel">Move</text>
+            <text x="50" y="-2" text-anchor="middle" class="svgsub">W / G</text>
+          </g>
+          <g transform="translate(530,40)">
+            <rect x="-30" y="-20" width="160" height="150" rx="10" fill="#0f0c28" stroke="#22d3ee"/>
+            <circle cx="50" cy="62" r="34" fill="none" stroke="#3affc0" stroke-width="3"/>
+            <ellipse cx="50" cy="62" rx="34" ry="13" fill="none" stroke="#ff2e97" stroke-width="3"/>
+            <text x="50" y="120" text-anchor="middle" class="svglabel">Rotate</text>
+            <text x="50" y="-2" text-anchor="middle" class="svgsub">E / R</text>
+          </g>
+          <g transform="translate(760,40)">
+            <rect x="-30" y="-20" width="160" height="150" rx="10" fill="#0f0c28" stroke="#22d3ee"/>
+            <line x1="50" y1="80" x2="50" y2="34" stroke="#3affc0" stroke-width="3"/><rect x="45" y="28" width="10" height="10" fill="#3affc0"/>
+            <line x1="50" y1="80" x2="96" y2="80" stroke="#ff2e97" stroke-width="3"/><rect x="92" y="75" width="10" height="10" fill="#ff2e97"/>
+            <text x="50" y="120" text-anchor="middle" class="svglabel">Scale</text>
+            <text x="50" y="-2" text-anchor="middle" class="svgsub">R / S</text>
+          </g>
+          <defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#cfd2ff"/></marker></defs>
+        </svg>
+        <figcaption>Select, Move, Rotate, Scale. Key hints show Maya / Blender bindings — see the full table below.</figcaption>
+      </figure>
+      <p>Click an object in the viewport to select it; the gizmo snaps to it. Drag a gizmo handle to transform, or type precise numbers into the Inspector. Press the focus key (<kbd>F</kbd> in Maya/Unity, <kbd>.</kbd> in Blender) to frame the selection.</p>
+    </section>
+
+    <!-- ============ INSPECTOR ============ -->
+    <section id="inspector">
+      <h2>The Inspector</h2>
+      <p>The right panel shows everything about the selected object. While playing it flips to a <span style="color:var(--magenta)">● live</span> readout that reflects the running scene each frame.</p>
+      <table>
+        <tr><th>Section</th><th>What it controls</th></tr>
+        <tr><td>Name</td><td>Rename the entity inline.</td></tr>
+        <tr><td>Transform</td><td>Position, Rotation (degrees) and Scale as X/Y/Z fields. Read-only while playing — shows live values.</td></tr>
+        <tr><td>Mesh</td><td>Color picker and a Visible toggle (only for mesh entities).</td></tr>
+        <tr><td>Light</td><td>Color and an intensity slider (0–3).</td></tr>
+        <tr><td>Physics</td><td>Toggle a rigid body and set its type, collider shape, mass, bounce and friction. See <a href="#physics">Physics</a>.</td></tr>
+        <tr><td>Effects</td><td>Particle effects on this object — add from a preset, enable/disable, open the effect editor, or remove. See <a href="#effects">Effects</a>.</td></tr>
+        <tr><td>Properties</td><td>Arbitrary custom key/values per entity. Numeric strings are stored as numbers. Read by scripts via <code>entity.props</code>.</td></tr>
+        <tr><td>Scripts</td><td>Attached behaviours: enable/disable (power icon), open in the editor (click the name), or detach (✕). Add a new one with <code>+ Add Behaviour</code>.</td></tr>
+      </table>
+      <div class="note cyan"><b>Game Camera selected?</b> The Inspector instead shows the camera's position/rotation and a <b>Reset to default</b> button.</div>
+    </section>
+
+    <!-- ============ HIERARCHY ============ -->
+    <section id="hierarchy">
+      <h2>Hierarchy &amp; context menus</h2>
+      <p>The Hierarchy lists every entity with a type icon (mesh / light / empty) and a <code>⟨/⟩</code> marker for objects that have behaviours. An <b>Editor</b> group at the bottom holds the Game Camera and the Grid toggle.</p>
+      <h3>Right-click menus</h3>
+      <div class="grid3">
+        <div class="card"><h4>On an entity</h4><p style="font-size:13px;color:var(--text-dim)">Frame · Duplicate · Add Behaviour · Visible · Delete</p></div>
+        <div class="card"><h4>On empty space</h4><p style="font-size:13px;color:var(--text-dim)">Add Mesh ▸ · Add Light ▸ · Frame All · Show Grid</p></div>
+        <div class="card"><h4>On the Game Camera</h4><p style="font-size:13px;color:var(--text-dim)">Frame Camera · Reset Game Camera</p></div>
+      </div>
+      <p>These same menus are available by right-clicking directly in the 3D viewport — the editor picks whatever is under the cursor.</p>
+    </section>
+
+    <!-- ============ CAMERA ============ -->
+    <section id="camera">
+      <h2>Game camera &amp; preview</h2>
+      <p>Vyper renders the scene twice at once (Babylon multi-view): the <b>Scene</b> panel uses a free editor camera you can orbit; the <b>Game</b> panel uses the dedicated play camera — exactly what a player would see.</p>
+      <ul class="steps">
+        <li>Select <b>Game Camera</b> in the Hierarchy's Editor group.</li>
+        <li>Edit its Position and Rotation in the Inspector, or move its rig in the Scene view.</li>
+        <li>Use <b>Reset to default</b> to return to the standard behind-and-above framing.</li>
+      </ul>
+      <div class="note cyan">The grid is an editor-only aid — it never appears in the Game preview or while playing.</div>
+    </section>
+
+    <!-- ============ PHYSICS ============ -->
+    <section id="physics">
+      <h2>Physics</h2>
+      <p>Vyper has a built-in rigid-body simulation (Havok). Give any mesh a body in the Inspector's <b>Physics</b> section, then objects fall, collide and bounce while playing. Physics runs in <b>3D</b> games; 2D movement is script-driven.</p>
+      <table>
+        <tr><th>Setting</th><th>What it does</th></tr>
+        <tr><td>Rigid body</td><td>Master toggle — off means no body (the mesh is inert / decorative).</td></tr>
+        <tr><td>Type</td><td><code>dynamic</code> (fully simulated, affected by gravity) · <code>static</code> (never moves — walls/floors) · <code>kinematic</code> (moved by script, pushes dynamics).</td></tr>
+        <tr><td>Shape</td><td>Collider: <code>auto</code> (picked from the mesh kind) · box · sphere · capsule · cylinder.</td></tr>
+        <tr><td>Mass</td><td>Kilograms (dynamic only). Ignored for static bodies.</td></tr>
+        <tr><td>Bounce</td><td>Restitution 0–1 — how much energy is kept on impact.</td></tr>
+        <tr><td>Friction</td><td>Surface friction 0–1.</td></tr>
+      </table>
+      <div class="note cyan"><b>Floors are automatic:</b> on Play, any <code>ground</code> or <code>plane</code> mesh gets a static collider even without an explicit body, so players and dynamic objects have something to stand on.</div>
+      <h3>Physics in scripts &amp; nodes</h3>
+      <p>The <span class="pill physics">Physics</span> node category and the matching script API drive bodies at runtime. A behaviour can even create its body on the fly with <code>entity.usePhysics()</code> (this is how the player controllers work).</p>
+      <table>
+        <tr><th>Node</th><th>Kind</th><th>Effect</th></tr>
+        <tr><td>Set Velocity</td><td>action</td><td>Sets the body's linear velocity (m/s).</td></tr>
+        <tr><td>Apply Impulse</td><td>action</td><td>An instantaneous push (e.g. a jump).</td></tr>
+        <tr><td>Apply Force</td><td>action</td><td>A continuous force (use per-frame).</td></tr>
+        <tr><td>Get Velocity</td><td>value → vec3</td><td>Current linear velocity.</td></tr>
+        <tr><td>Is Grounded</td><td>value → bool</td><td>True when something solid is directly underfoot.</td></tr>
+        <tr><td>Raycast Hit</td><td>value → bool</td><td>Casts a short ray in a direction; true if it hits.</td></tr>
+        <tr><td>On Collision</td><td>event</td><td>Fires when this body touches another; outputs the <em>other</em> object.</td></tr>
+      </table>
+    </section>
+
+    <!-- ============ EFFECTS ============ -->
+    <section id="effects">
+      <h2>Effects (VFX)</h2>
+      <p>Attach <b>particle effects</b> to any object for fire, smoke, explosions, magic and weather. Select an object and click <code>FX +</code> in the toolbar (or use the Inspector's Effects section) to add one from a preset. Effects are drawn by Babylon's particle system and persist with the scene.</p>
+      <div class="grid2">
+        <div class="card">
+          <h4>Presets</h4>
+          <p style="font-size:13px">Fire · Smoke · Explosion · Sparkle / Magic · Confetti · Muzzle Flash · Heal / Aura · Rain · Snow · Dust Trail · Electricity</p>
+          <p style="color:var(--text-dim);font-size:13px">The menu lists only presets that suit the current 2D/3D <a href="#dimensions">mode</a>. Each one is a fully editable starting point — not a black box.</p>
+        </div>
+        <div class="card">
+          <h4>The effect editor</h4>
+          <p style="font-size:13px">Open an effect from the Inspector to tune emitter shape, emit rate, particle size/lifetime, color-over-life gradients, gravity, blend mode and texture — with a <b>live preview</b>.</p>
+        </div>
+      </div>
+      <h3>Playback &amp; triggering</h3>
+      <ul>
+        <li><b>Auto</b> playback starts the effect at Play (optionally looping, with a duration and delay).</li>
+        <li><b>Manual</b> playback waits to be triggered — from a script (<code>entity.playEffect()</code>) or the <span class="pill fx">FX</span> nodes.</li>
+      </ul>
+      <table>
+        <tr><th>Node</th><th>Kind</th><th>Effect</th></tr>
+        <tr><td>Play Effect</td><td>action</td><td>Starts an effect on this object (by name, or all effects if blank).</td></tr>
+        <tr><td>Stop Effects</td><td>action</td><td>Stops this object's emitting effects.</td></tr>
+      </table>
+      <div class="note cyan">Effects are stored on the entity, so copy/paste and duplicate bring them along.</div>
+    </section>
+
+    <!-- ============ HUD EDITOR ============ -->
+    <section id="hud">
+      <h2>HUD editor</h2>
+      <p>Click <b>HUD</b> in the toolbar to open the on-screen overlay editor — the same tool for both 2D and 3D games. Design health bars, score, timers, a crosshair, objectives and more on a 16:9 stage; it renders live over the <b>Game preview</b> so you see exactly how it sits in-game, both while editing and during play.</p>
+      <figure>
+        <svg viewBox="0 0 960 300" role="img" aria-label="HUD editor layout">
+          <rect x="12" y="12" width="150" height="276" rx="8" fill="#0f0c28" stroke="#2a2358"/>
+          <text x="26" y="36" class="svglabel">Widgets</text>
+          <text x="26" y="62" class="svgsub">T  Text</text><text x="26" y="84" class="svgsub">＃ Score</text>
+          <text x="26" y="106" class="svgsub">◷  Timer</text><text x="26" y="128" class="svgsub">❤ Health Bar</text>
+          <text x="26" y="150" class="svgsub">✛ Crosshair</text><text x="26" y="172" class="svgsub">◎ Objective</text>
+          <text x="26" y="194" class="svgsub">★ Icon · ▢ Button</text>
+          <text x="86" y="278" class="svgsub" text-anchor="middle">palette</text>
+
+          <rect x="178" y="12" width="560" height="276" rx="8" fill="#06060f" stroke="#22d3ee"/>
+          <text x="198" y="36" class="svgsub" fill="#22d3ee">16:9 stage — live HUD over the game</text>
+          <rect x="196" y="50" width="150" height="14" rx="3" fill="#1d2734"/><rect x="196" y="50" width="100" height="14" rx="3" fill="#3affc0"/>
+          <text x="700" y="62" class="svgmono" fill="#3affc0" text-anchor="end">SCORE 0</text>
+          <line x1="455" y1="140" x2="455" y2="160" stroke="#e6e9ff" stroke-width="2"/><line x1="445" y1="150" x2="465" y2="150" stroke="#e6e9ff" stroke-width="2"/>
+          <rect x="360" y="235" width="120" height="40" rx="6" fill="none" stroke="#22d3ee" stroke-dasharray="4 3"/>
+          <rect x="356" y="231" width="8" height="8" fill="#22d3ee"/><rect x="476" y="231" width="8" height="8" fill="#22d3ee"/>
+          <rect x="356" y="271" width="8" height="8" fill="#22d3ee"/><rect x="476" y="271" width="8" height="8" fill="#22d3ee"/>
+          <text x="458" y="258" class="svgsub" text-anchor="middle">drag · resize handles</text>
+
+          <rect x="754" y="12" width="194" height="276" rx="8" fill="#0f0c28" stroke="#2a2358"/>
+          <text x="768" y="36" class="svglabel">Inspector</text>
+          <text x="768" y="60" class="svgsub">anchor 3×3 snap</text>
+          <text x="768" y="82" class="svgsub">x / y / w / h (%)</text>
+          <text x="768" y="104" class="svgsub">label · value · max</text>
+          <text x="768" y="126" class="svgsub">bind → live prop</text>
+          <text x="768" y="148" class="svgsub">color · font · align</text>
+        </svg>
+        <figcaption>Palette · a 16:9 stage with drag/resize widgets (and rule-of-thirds + safe-area guides) · per-widget inspector.</figcaption>
+      </figure>
+      <ul class="steps">
+        <li><b>Add</b> a widget by clicking it in the palette. It drops onto the stage selected.</li>
+        <li><b>Place it</b> by dragging, or grab a handle to resize. The 3×3 anchor buttons snap it to a screen region. Everything is stored as a % of the screen, so it scales to any resolution.</li>
+        <li><b>Bind live values</b> — give a bar/score/ammo widget an <em>Object</em> (e.g. <code>Player</code>) and a <em>Prop</em> (e.g. <code>health</code>). While playing, it reads that entity's live property; otherwise it shows the static preview value.</li>
+        <li><b>Style</b> color, background, font, corner radius, opacity and alignment in the inspector.</li>
+      </ul>
+      <div class="note cyan">The HUD is saved per game and shared across all its scenes. It draws over the Game preview at all times, so you're always seeing the real in-game result.</div>
+    </section>
+
+    <!-- ============ GOALS / DESIGN ============ -->
+    <section id="goals">
+      <h2>Goals &amp; objectives</h2>
+      <p>Click <b>Design</b> in the toolbar to open the game-design editor — a guided space for the rules and goals that turn a scene into a <em>game</em>. What you define here is saved with the game, shared across scenes, and wired into the node editor and runtime so objects can act in line with the game's goals.</p>
+      <div class="grid2">
+        <div class="card">
+          <h4>What you author</h4>
+          <ul style="margin:0;padding-left:18px;font-size:13.5px;color:#cfd2ff">
+            <li><b>Concept</b> — a one-line pitch.</li>
+            <li><b>Win / Lose conditions</b> — in plain language.</li>
+            <li><b>Objectives</b> — the trackable goals.</li>
+            <li><b>Rules</b> — the constraints of play.</li>
+          </ul>
+          <p style="color:var(--text-dim);font-size:13px;margin-bottom:0">A live <b>completeness</b> checklist nudges you toward a fully thought-out design.</p>
+        </div>
+        <div class="card">
+          <h4>An objective has</h4>
+          <ul style="margin:0;padding-left:18px;font-size:13.5px;color:#cfd2ff">
+            <li><b>Priority</b> — <em>primary</em> (required to win), <em>secondary</em>, or <em>bonus</em>.</li>
+            <li><b>Tracking</b> — a <em>flag</em> (done / not done) or a <em>counter</em> toward a target (e.g. collect 5).</li>
+            <li><b>Reward</b> — an optional note on what completing it does.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Using goals in behaviours</h3>
+      <p>Every objective shows up in the node editor. Drop an <span class="pill objective">Objective</span> node and pick a goal from the dropdown — so any object can complete a goal, add progress, or branch on whether it's done.</p>
+      <table>
+        <tr><th>Node</th><th>Kind</th><th>Effect</th></tr>
+        <tr><td>Complete Objective</td><td>action</td><td>Marks the chosen goal complete.</td></tr>
+        <tr><td>Add Progress</td><td>action</td><td>Adds an amount to a counter goal (completes it at the target).</td></tr>
+        <tr><td>Objective Complete?</td><td>value → bool</td><td>Whether the goal is done — wire into a <b>Branch</b> to gate behaviour.</td></tr>
+        <tr><td>Objective Progress</td><td>value → number</td><td>The goal's current count.</td></tr>
+      </table>
+      <p>The same actions are available in code through the <code>world</code> API (see <a href="#api">Scripting API</a>). While playing, completing a goal logs to the Debugger, and once <b>every primary objective</b> is done Vyper announces the win.</p>
+      <div class="note cyan">Objectives are also a HUD widget — drop an <em>Objective</em> widget in the <a href="#hud">HUD editor</a> to show progress on screen.</div>
+    </section>
+
+    <!-- ============ SCRIPTING OVERVIEW ============ -->
+    <section id="scripting">
+      <h2>Behaviours overview</h2>
+      <p>A <b>behaviour</b> (Script) is attached to an entity and defines what it does at runtime. Every behaviour holds <em>both</em> a node graph and JavaScript, kept in sync <b>bi-directionally</b>. Author visually, in code, or move fluidly between the two — see <a href="#roundtrip">Node ↔ Code</a>.</p>
+      <div class="grid2">
+        <div class="card"><h4>Nodes mode <span class="pill event">visual</span></h4><p style="font-size:13.5px">Drag and wire nodes. Every edit regenerates the JS so the Code tab always mirrors the graph.</p></div>
+        <div class="card"><h4>Code mode <span class="pill action">javascript</span></h4><p style="font-size:13.5px">Hand-edit JS with full Monaco autocomplete. Each change is parsed straight back into the node graph, so the Nodes tab mirrors your code too.</p></div>
+      </div>
+      <p>Multiple behaviours can be attached to one entity, each individually enabled/disabled. They show as tabs across the top of the Script editor.</p>
+    </section>
+
+    <!-- ============ NODES ============ -->
+    <section id="nodes">
+      <h2>Visual node graph</h2>
+      <p>The node editor is a React-Flow canvas. A palette on the left lists every node, grouped by category. Click a palette item to drop it in, or drag it onto the canvas. Wire nodes together to define flow and data.</p>
+      <figure>
+        <svg viewBox="0 0 960 320" role="img" aria-label="Node graph anatomy">
+          <!-- exec edge -->
+          <path d="M250,90 C310,90 320,90 360,90" fill="none" stroke="#ff2e97" stroke-width="2.5" stroke-dasharray="6 5"/>
+          <!-- data edge -->
+          <path d="M250,250 C320,250 320,150 360,128" fill="none" stroke="#3affc0" stroke-width="2.5"/>
+
+          <!-- event node -->
+          <rect x="80" y="56" width="170" height="64" rx="9" fill="#1a0f2a" stroke="#ff2e97" stroke-width="1.5"/>
+          <rect x="80" y="56" width="170" height="22" rx="9" fill="#ff2e97" opacity=".22"/>
+          <text x="94" y="72" class="svglabel" fill="#ff2e97">On Update</text>
+          <text x="232" y="96" class="svgmono" fill="#ff2e97" text-anchor="end">▶</text>
+          <circle cx="246" cy="90" r="4" fill="#ff2e97"/>
+          <text x="232" y="113" class="svgsub" text-anchor="end">Δ sec ●</text>
+
+          <!-- value node -->
+          <rect x="80" y="216" width="170" height="64" rx="9" fill="#0f2a22" stroke="#3affc0" stroke-width="1.5"/>
+          <rect x="80" y="216" width="170" height="22" rx="9" fill="#3affc0" opacity=".18"/>
+          <text x="94" y="232" class="svglabel" fill="#3affc0">Number</text>
+          <text x="94" y="262" class="svgmono" fill="#cfd2ff">60</text>
+          <text x="232" y="262" class="svgsub" text-anchor="end">value ●</text>
+
+          <!-- action node -->
+          <rect x="360" y="56" width="190" height="90" rx="9" fill="#0e2730" stroke="#22d3ee" stroke-width="1.5"/>
+          <rect x="360" y="56" width="190" height="22" rx="9" fill="#22d3ee" opacity=".2"/>
+          <text x="374" y="72" class="svglabel" fill="#22d3ee">Rotate</text>
+          <circle cx="364" cy="90" r="4" fill="#22d3ee"/><text x="374" y="94" class="svgsub">▶ exec</text>
+          <text x="546" y="94" class="svgsub" text-anchor="end">exec ▶</text><circle cx="546" cy="90" r="4" fill="#22d3ee"/>
+          <circle cx="364" cy="124" r="4" fill="#3affc0"/><text x="374" y="128" class="svgsub">● deg (vec3)</text>
+          <text x="536" y="135" class="svgsub" text-anchor="end">☑ per second</text>
+
+          <!-- legend -->
+          <g transform="translate(610,70)">
+            <line x1="0" y1="0" x2="34" y2="0" stroke="#ff2e97" stroke-width="2.5" stroke-dasharray="6 5"/>
+            <text x="44" y="4" class="svgsub">execution flow (when)</text>
+            <line x1="0" y1="30" x2="34" y2="30" stroke="#3affc0" stroke-width="2.5"/>
+            <text x="44" y="34" class="svgsub">data flow (values)</text>
+            <rect x="0" y="56" width="14" height="14" rx="3" fill="#ff2e97" opacity=".4"/><text x="22" y="67" class="svgsub">event · when things happen</text>
+            <rect x="0" y="80" width="14" height="14" rx="3" fill="#22d3ee" opacity=".4"/><text x="22" y="91" class="svgsub">action · do something</text>
+            <rect x="0" y="104" width="14" height="14" rx="3" fill="#3affc0" opacity=".4"/><text x="22" y="115" class="svgsub">value · compute / read</text>
+          </g>
+        </svg>
+        <figcaption>Anatomy: dashed magenta wires carry <b>execution flow</b>; solid green wires carry <b>data</b>. Events have no exec input; value nodes have no exec ports.</figcaption>
+      </figure>
+
+      <h3>Working in the canvas</h3>
+      <table>
+        <tr><th>Action</th><th>How</th></tr>
+        <tr><td>Add a node</td><td>Click a palette item, drag it onto the canvas, or right-click the canvas → Add node ▸.</td></tr>
+        <tr><td>Connect ports</td><td>Drag from an output handle to a compatible input. Types must match; exec only connects to exec.</td></tr>
+        <tr><td>Edit inline fields</td><td>Unconnected inputs and literal fields (numbers, vectors, keys, the math op) are edited directly on the node body.</td></tr>
+        <tr><td>Duplicate / copy / paste</td><td>Right-click a node, or use the keyboard shortcuts — works on multi-selections.</td></tr>
+        <tr><td>Disconnect / delete</td><td>Right-click → Disconnect or Delete.</td></tr>
+        <tr><td>Navigate</td><td>Minimap (color-coded by category), zoom Controls, and Fit view from the canvas menu.</td></tr>
+      </table>
+      <div class="note cyan">Connections are validated as you draw them: a data port only accepts the same data kind, and a target input takes a single connection (the newest wins). An <b>exec output can fan out</b> to several targets — they run in top-to-bottom order — so one event can drive multiple action chains without a relay node.</div>
+    </section>
+
+    <!-- ============ CATALOG ============ -->
+    <section id="catalog">
+      <h2>Node catalog</h2>
+
+      <h3><span class="pill event">Events</span> — entry points</h3>
+      <table>
+        <tr><th>Node</th><th>Outputs</th><th>Fires</th></tr>
+        <tr><td>On Start</td><td>exec</td><td>Once, when the entity spawns at Play.</td></tr>
+        <tr><td>On Update</td><td>exec, <code>Δ sec</code></td><td>Every frame. Provides delta-time in seconds.</td></tr>
+      </table>
+
+      <h3><span class="pill action">Actions</span> — do something (need an exec wire in)</h3>
+      <table>
+        <tr><th>Node</th><th>Inputs</th><th>Effect</th></tr>
+        <tr><td>Log</td><td>message</td><td>Prints to the Debugger console.</td></tr>
+        <tr><td>Translate</td><td>by (vec3), ☑ per second</td><td>Moves the entity. Per-second scales by delta-time.</td></tr>
+        <tr><td>Rotate</td><td>deg (vec3), ☑ per second</td><td>Rotates the entity in degrees.</td></tr>
+        <tr><td>Set Position</td><td>to (vec3)</td><td>Teleports to an absolute position.</td></tr>
+        <tr><td>Set Property</td><td>target (entity, optional), value, key</td><td>Writes a prop. Leave <em>target</em> unconnected to write this entity; wire an object (e.g. a collision's <em>other</em>) to write that one.</td></tr>
+        <tr><td>Branch (if)</td><td>condition → then / else</td><td>Splits execution flow on a boolean.</td></tr>
+      </table>
+
+      <h3><span class="pill value">Values</span> — compute &amp; read (no exec ports)</h3>
+      <table>
+        <tr><th>Node</th><th>Output</th><th>Yields</th></tr>
+        <tr><td>Number</td><td>number</td><td>A literal constant.</td></tr>
+        <tr><td>Vector3</td><td>vec3</td><td>A literal x/y/z vector.</td></tr>
+        <tr><td>Object</td><td>entity</td><td>Resolves another object by name — feed it into a <em>target</em> input.</td></tr>
+        <tr><td>Get Position</td><td>vec3</td><td>The entity's current position.</td></tr>
+        <tr><td>Get Property</td><td>number</td><td>A prop's value (0 if unset). Takes an optional <em>target</em> object, like Set Property.</td></tr>
+        <tr><td>Time</td><td>number</td><td>Seconds elapsed since Play.</td></tr>
+        <tr><td>Key Down</td><td>bool</td><td>Whether the key is held. Type a key name, or click <b>⌨ capture</b> and press it — including arrow keys and combos held at once (e.g. <code>shift+arrowup</code>).</td></tr>
+        <tr><td>Math</td><td>number</td><td><code>a op b</code> where op is + − × ÷ (÷ guards divide-by-zero).</td></tr>
+      </table>
+
+      <p>The palette also groups <span class="pill physics">Physics</span> (Set/Apply velocity &amp; forces, Get Velocity, Is Grounded, Raycast Hit, On Collision — see <a href="#physics">Physics</a>), <span class="pill objective">Objectives</span> (Complete / Add Progress / Complete? / Progress — see <a href="#goals">Goals</a>) and <span class="pill fx">FX</span> (Play / Stop Effects — see <a href="#effects">Effects</a>).</p>
+
+      <h3><span class="pill asset">Controllers</span> — one node = a full behaviour</h3>
+      <p>Plug-and-play macros that inject complete movement logic. Add one to an empty behaviour (or use the <code>Player +</code> button, which sets one up for you).</p>
+      <table>
+        <tr><th>Node</th><th>Use</th></tr>
+        <tr><td>2D Player Controller</td><td>WASD / arrow movement on the XY plane (2D games).</td></tr>
+        <tr><td>First-Person Controller</td><td>Mouse-look + WASD + jump, eyes-in-head camera (3D).</td></tr>
+        <tr><td>Third-Person Controller</td><td>Mouse-orbit follow camera + WASD + jump (3D).</td></tr>
+      </table>
+      <div class="note cyan">Controller nodes expose their tuning (move/sprint speed, jump height, look sensitivity, camera distance) as fields. Flip the behaviour to <a href="#roundtrip">Code</a> to read and edit the real controller logic.</div>
+    </section>
+
+    <!-- ============ ROUND TRIP ============ -->
+    <section id="roundtrip">
+      <h2>Node ↔ Code round-trip</h2>
+      <p>The graph and the code are <b>two views of one behaviour</b>, kept in sync <b>both ways</b>. Edit the nodes and the code updates; edit the code and the graph rebuilds to match. Neither is a black box, and neither silently wins.</p>
+      <figure>
+        <svg viewBox="0 0 960 200" role="img" aria-label="Bi-directional node and code sync">
+          <!-- node graph -->
+          <rect x="60" y="60" width="240" height="80" rx="10" fill="#1a0f2a" stroke="#ff2e97"/>
+          <text x="180" y="96" text-anchor="middle" class="svglabel" fill="#ff2e97">Node graph</text>
+          <text x="180" y="116" text-anchor="middle" class="svgsub">drag, wire, edit fields</text>
+
+          <!-- javascript -->
+          <rect x="660" y="60" width="240" height="80" rx="10" fill="#0e2730" stroke="#22d3ee"/>
+          <text x="780" y="96" text-anchor="middle" class="svglabel" fill="#22d3ee">JavaScript</text>
+          <text x="780" y="116" text-anchor="middle" class="svgsub">onStart / onUpdate</text>
+
+          <!-- graph → code (top) -->
+          <path d="M300,86 L660,86" stroke="#3affc0" stroke-width="2.5" marker-end="url(#a2)"/>
+          <text x="480" y="76" text-anchor="middle" class="svgsub" fill="#3affc0">edit nodes → generate code</text>
+
+          <!-- code → graph (bottom) -->
+          <path d="M660,116 L300,116" stroke="#b14aed" stroke-width="2.5" marker-end="url(#a3)"/>
+          <text x="480" y="136" text-anchor="middle" class="svgsub" fill="#b14aed">edit code → parse &amp; rebuild graph</text>
+
+          <text x="480" y="178" text-anchor="middle" class="svgsub">both stay in sync · the runtime executes whichever you last touched</text>
+          <defs>
+            <marker id="a2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#3affc0"/></marker>
+            <marker id="a3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#b14aed"/></marker>
+          </defs>
+        </svg>
+        <figcaption>Bi-directional: node edits regenerate the code, and code edits are parsed back into the graph. Switch tabs freely — the other side already reflects your change.</figcaption>
+      </figure>
+
+      <h3>Example — this graph and this code are the same behaviour:</h3>
+      <pre><code><span class="tok-c">// ⚙ On Start → Log "Entity spawned";  On Update → Rotate 60°/s on Y</span>
+<span class="tok-k">function</span> <span class="tok-f">onStart</span>(dt) {
+  console.<span class="tok-f">log</span>(<span class="tok-s">"Entity spawned"</span>);
+}
+
+<span class="tok-k">function</span> <span class="tok-f">onUpdate</span>(dt) {
+  { <span class="tok-k">const</span> _v = <span class="tok-f">vec</span>(<span class="tok-n">0</span>, <span class="tok-n">60</span>, <span class="tok-n">0</span>); entity.<span class="tok-f">rotate</span>(_v.x * dt, _v.y * dt, _v.z * dt); }
+}</code></pre>
+      <p>Change the <code>60</code> to <code>120</code> in the Code tab and the Rotate node's field updates to 120 the moment you flip to Nodes — and vice-versa. The Code tab shows a <span style="color:var(--green)">⇄ synced</span> badge while the graph mirrors your code.</p>
+
+      <h3>When code can't be drawn as nodes</h3>
+      <p>The node vocabulary covers the supported actions and values (see the catalog above). If you hand-write something it can't represent — a <code>for</code> loop, a function call, a comparison — Vyper doesn't mangle the graph. It pauses the sync, keeps your code as the source of truth, and shows a <span style="color:var(--warn)">⚠ can't be represented as nodes</span> notice.</p>
+      <div class="note"><b>Reset from nodes:</b> while the graph is paused, this button (Code tab) discards the unrepresentable code and rebuilds it from the last good graph — the explicit escape hatch back into sync.</div>
+    </section>
+
+    <!-- ============ API ============ -->
+    <section id="api">
+      <h2>Scripting API</h2>
+      <p>Whether generated or hand-written, every behaviour runs with the same injected globals. Define <code>onStart(dt)</code> and/or <code>onUpdate(dt)</code>; both are optional.</p>
+      <pre><code><span class="tok-c">// available in every behaviour</span>
+entity   <span class="tok-c">// transform + props + physics + effects (see table)</span>
+input    <span class="tok-c">// { key(name), axisX, axisY, mouse, lockPointer() }</span>
+time     <span class="tok-c">// { elapsed, delta }            — seconds</span>
+<span class="tok-f">vec</span>(x, y, z) <span class="tok-c">// build a {x,y,z} (with .add/.scale/.normalize)</span>
+camera   <span class="tok-c">// game camera: yaw/pitch, follow helpers</span>
+world    <span class="tok-c">// other objects + game objectives</span>
+scene    <span class="tok-c">// the raw Babylon Scene (advanced)</span>
+console  <span class="tok-c">// log / info / warn / error / debug → Debugger panel</span>
+
+<span class="tok-k">function</span> <span class="tok-f">onStart</span>(dt) { <span class="tok-c">/* once, at Play */</span> }
+<span class="tok-k">function</span> <span class="tok-f">onUpdate</span>(dt) { <span class="tok-c">/* every frame; dt = seconds since last frame */</span> }
+<span class="tok-k">function</span> <span class="tok-f">onCollision</span>(other) { <span class="tok-c">/* when a physics body touches another */</span> }</code></pre>
+
+      <table>
+        <tr><th>Global</th><th>Members</th><th>Notes</th></tr>
+        <tr><td>entity</td><td><code>id</code>, <code>name</code>, <code>position</code>, <code>rotation</code> (deg), <code>props</code>, <code>translate()</code>, <code>rotate()</code>, <code>setPosition()</code></td><td>Reads &amp; writes the live mesh transform.</td></tr>
+        <tr><td>entity (physics)</td><td><code>usePhysics()</code>, <code>setVelocity()</code>, <code>getVelocity()</code>, <code>applyImpulse()</code>, <code>applyForce()</code>, <code>isGrounded()</code>, <code>raycastHit(dir,len)</code></td><td>Drives this entity's rigid body — see <a href="#physics">Physics</a>.</td></tr>
+        <tr><td>entity (fx)</td><td><code>playEffect(name?)</code>, <code>stopEffect()</code></td><td>Trigger / stop its <a href="#effects">particle effects</a>.</td></tr>
+        <tr><td>input</td><td><code>key("w")</code>, <code>axisX</code>, <code>axisY</code>, <code>mouse.dx/dy</code>, <code>lockPointer()</code></td><td>axisX = D/→ minus A/←; axisY = W/↑ minus S/↓. <code>mouse</code> is per-frame look delta (lock the pointer first).</td></tr>
+        <tr><td>time</td><td><code>elapsed</code>, <code>delta</code></td><td>Delta is clamped to ≤ 0.1s to survive frame hitches.</td></tr>
+        <tr><td>camera</td><td><code>yaw</code>, <code>pitch</code>, <code>forwardXZ</code>, <code>rightXZ</code>, <code>attachFirstPerson()</code>, <code>followThirdPerson()</code></td><td>The shared game camera — used by the player controllers.</td></tr>
+        <tr><td>world</td><td><code>findObject(name)</code>, <code>getProp(obj,key)</code>, <code>setProp(obj,key,v)</code></td><td>Reach other objects in the scene.</td></tr>
+        <tr><td>world (goals)</td><td><code>completeObjective(id)</code>, <code>addProgress(id,n)</code>, <code>isComplete(id)</code>, <code>progress(id)</code></td><td>Drive the game's <a href="#goals">objectives</a>.</td></tr>
+        <tr><td>console</td><td><code>log/info/warn/error/debug</code></td><td>Routed to the in-editor Debugger, tagged with the script name.</td></tr>
+      </table>
+
+      <h4>Example — WASD movement</h4>
+      <pre><code><span class="tok-k">function</span> <span class="tok-f">onUpdate</span>(dt) {
+  <span class="tok-k">const</span> speed = entity.props.speed ?? <span class="tok-n">3</span>;
+  entity.<span class="tok-f">translate</span>(input.axisX * speed * dt, <span class="tok-n">0</span>, input.axisY * speed * dt);
+}</code></pre>
+
+      <div class="note"><b>Crash safety:</b> compile and runtime errors are caught and printed to the Debugger. A behaviour that throws is disabled for the rest of the session so it can't spam the console at 60 fps. In Nodes mode the failing node is pinpointed in the live flow.</div>
+    </section>
+
+    <!-- ============ PLAY ============ -->
+    <section id="play">
+      <h2>Play / Pause / Stop</h2>
+      <p>The transport controls in the toolbar drive the runtime. The state pill shows <code>editing</code> · <code>playing</code> · <code>paused</code>.</p>
+      <div class="grid3">
+        <div class="card"><h4>▶ Play</h4><p style="font-size:13px;color:var(--text-dim)">Snapshots the scene, compiles every enabled behaviour, runs <code>onStart</code>, then drives <code>onUpdate(dt)</code> from the render loop.</p></div>
+        <div class="card"><h4>❚❚ Pause</h4><p style="font-size:13px;color:var(--text-dim)">Freezes updates; press again to resume from exactly where you stopped.</p></div>
+        <div class="card"><h4>■ Stop</h4><p style="font-size:13px;color:var(--text-dim)">Restores the pre-play snapshot non-destructively — your scene returns to its exact edit state.</p></div>
+      </div>
+      <p>While playing, the Inspector shows live transforms and properties, and the Game preview is the canonical view. Editing is locked to prevent fighting the running simulation.</p>
+    </section>
+
+    <!-- ============ DEBUGGER ============ -->
+    <section id="debugger">
+      <h2>Debugger console</h2>
+      <p>The bottom panel captures all <code>console.*</code> output from behaviours and surfaces live engine stats.</p>
+      <ul>
+        <li><b>Level filters</b> — toggle <span style="color:#8a86c4">log</span> / <span style="color:var(--cyan)">info</span> / <span style="color:var(--warn)">warn</span> / <span style="color:var(--error)">error</span> / debug independently.</li>
+        <li><b>Collapse repeats</b> — identical consecutive lines fold into one row with a count badge (great for per-frame logs).</li>
+        <li><b>Live stats</b> — current <b>FPS</b> (highlighted while playing) and total <b>mesh</b> count.</li>
+        <li><b>Source tags</b> — each line is labelled with the behaviour that emitted it.</li>
+        <li><b>Clear</b> — wipe the log.</li>
+      </ul>
+    </section>
+
+    <!-- ============ BABYLON INSPECTOR ============ -->
+    <section id="bjs">
+      <h2>Babylon Inspector</h2>
+      <p>Click <b>Inspector</b> in the toolbar to overlay Babylon.js's own debug layer — a deep scene inspector for nodes, materials, textures, the render pipeline and live property tweaking. It loads on demand and toggles on/off without disturbing your scene.</p>
+      <div class="note cyan">This is distinct from Vyper's own right-hand Inspector panel. Use it when you need engine-level detail beyond what the editor surfaces.</div>
+    </section>
+
+    <!-- ============ SHORTCUTS ============ -->
+    <section id="shortcuts">
+      <h2>Keyboard shortcuts</h2>
+      <p>Vyper ships three keyboard layouts modelled on popular DCC tools. Pick one from the toolbar's keymap menu (or in the shortcuts overlay). Press <kbd>?</kbd> any time to open the cheat-sheet, <kbd>Esc</kbd> to close it. <code>⌘</code> is <kbd>Ctrl</kbd> on Windows/Linux.</p>
+      <table>
+        <tr><th>Action</th><th>Maya <span style="font-weight:400;text-transform:none">(default)</span></th><th>Blender</th><th>Unity</th></tr>
+        <tr><td>Select tool</td><td><kbd>Q</kbd></td><td><kbd>Q</kbd></td><td><kbd>Q</kbd></td></tr>
+        <tr><td>Move tool</td><td><kbd>W</kbd></td><td><kbd>G</kbd></td><td><kbd>W</kbd></td></tr>
+        <tr><td>Rotate tool</td><td><kbd>E</kbd></td><td><kbd>R</kbd></td><td><kbd>E</kbd></td></tr>
+        <tr><td>Scale tool</td><td><kbd>R</kbd></td><td><kbd>S</kbd></td><td><kbd>R</kbd></td></tr>
+        <tr><td>Frame selected</td><td><kbd>F</kbd></td><td><kbd>.</kbd></td><td><kbd>F</kbd></td></tr>
+        <tr><td>Undo</td><td><kbd>⌘ Z</kbd></td><td><kbd>⌘ Z</kbd></td><td><kbd>⌘ Z</kbd></td></tr>
+        <tr><td>Redo</td><td><kbd>⌘ ⇧ Z</kbd><span class="kbd-or">or</span><kbd>⌘ Y</kbd></td><td><kbd>⌘ ⇧ Z</kbd></td><td><kbd>⌘ ⇧ Z</kbd><span class="kbd-or">or</span><kbd>⌘ Y</kbd></td></tr>
+        <tr><td>Copy</td><td><kbd>⌘ C</kbd></td><td><kbd>⌘ C</kbd></td><td><kbd>⌘ C</kbd></td></tr>
+        <tr><td>Paste</td><td><kbd>⌘ V</kbd></td><td><kbd>⌘ V</kbd></td><td><kbd>⌘ V</kbd></td></tr>
+        <tr><td>Duplicate</td><td><kbd>⌘ D</kbd></td><td><kbd>⇧ D</kbd></td><td><kbd>⌘ D</kbd></td></tr>
+        <tr><td>Delete</td><td><kbd>Del</kbd><span class="kbd-or">or</span><kbd>⌫</kbd></td><td><kbd>X</kbd><span class="kbd-or">or</span><kbd>Del</kbd></td><td><kbd>Del</kbd><span class="kbd-or">or</span><kbd>⌫</kbd></td></tr>
+        <tr><td>Play / Pause</td><td><kbd>⌘ ⏎</kbd></td><td><kbd>Space</kbd></td><td><kbd>⌘ P</kbd></td></tr>
+        <tr><td>Stop</td><td><kbd>Esc</kbd></td><td><kbd>Esc</kbd></td><td><kbd>⌘ ⇧ P</kbd></td></tr>
+      </table>
+      <div class="note cyan">Edit, duplicate, copy and paste shortcuts are context-aware: inside the node canvas they act on selected nodes; otherwise on the selected entity.</div>
+    </section>
+
+    <!-- ============ HISTORY ============ -->
+    <section id="history">
+      <h2>Undo, redo &amp; clipboard</h2>
+      <p>Vyper keeps a snapshot-based history (up to 80 steps) of the editable scene — entities, behaviours and selection. Rapid same-kind edits (dragging a field, typing code) coalesce into a single undo step so one drag isn't 200 undos.</p>
+      <ul>
+        <li><b>Undo / Redo</b> from the toolbar arrows or the keymap bindings above.</li>
+        <li><b>Copy / Paste</b> an entity — its behaviours come along as fresh copies, offset slightly so it doesn't overlap the original.</li>
+        <li><b>Camera &amp; grid</b> are view state, deliberately excluded from undo history.</li>
+      </ul>
+    </section>
+
+    <footer>
+      <p><b>Vyper</b> — React + Babylon.js game editor. Built with Babylon.js, React 18, Zustand, React Flow, Monaco and Vite.</p>
+      <p>Stuck? Press <kbd>?</kbd> in the editor for the live shortcut sheet, or right-click almost anything for a context menu.</p>
+    </footer>
+  </main>
+</div>
+<a class="top" href="#overview" title="Back to top">↑</a>
+</body>
+</html>

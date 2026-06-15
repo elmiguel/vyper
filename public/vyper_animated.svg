@@ -1,0 +1,199 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 228 94" role="img" aria-labelledby="title desc">
+  <title id="title">Animated VYPER Tron logo</title>
+  <desc id="desc">A neon orb and VYPER wordmark write on with moving gradients, flashes, and glow.</desc>
+  <defs>
+    <radialGradient id="orbGradient" cx="35%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#a8ffff"/>
+      <stop offset="42%" stop-color="#4cd8ff"/>
+      <stop offset="78%" stop-color="#8b55e9"/>
+      <stop offset="100%" stop-color="#241532"/>
+    </radialGradient>
+
+    <linearGradient id="textGradient" x1="0%" y1="0%" x2="160%" y2="0%">
+      <stop offset="0%" stop-color="#ff63bd"/>
+      <stop offset="27%" stop-color="#c680e2"/>
+      <stop offset="55%" stop-color="#5ca8ff"/>
+      <stop offset="75%" stop-color="#31e4ff"/>
+      <stop offset="100%" stop-color="#ff63bd"/>
+      <animate attributeName="x1" values="-120%;0%;120%" dur="2.6s" repeatCount="indefinite"/>
+      <animate attributeName="x2" values="40%;160%;280%" dur="2.6s" repeatCount="indefinite"/>
+    </linearGradient>
+
+    <filter id="softGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="2.5" result="blur1"/>
+      <feGaussianBlur stdDeviation="7" in="SourceGraphic" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="hardFlash" x="-120%" y="-120%" width="340%" height="340%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feColorMatrix in="b" type="matrix" values="0 0 0 0 0.25  0 0 0 0 0.9  0 0 0 0 1  0 0 0 1 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <linearGradient id="scan" x1="0" x2="1">
+      <stop offset="0" stop-color="white" stop-opacity="0"/>
+      <stop offset=".45" stop-color="white" stop-opacity="0"/>
+      <stop offset=".5" stop-color="white" stop-opacity=".95"/>
+      <stop offset=".55" stop-color="white" stop-opacity="0"/>
+      <stop offset="1" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <style>
+    :root { --bg:#0c0a26; }
+    svg { background: var(--bg); }
+
+    .orb-halo {
+      transform-origin: 38px 47px;
+      animation: orbWake 2.2s ease-out both, orbPulse 2.4s 2.2s ease-in-out infinite;
+    }
+
+    .orb-core {
+      transform-origin: 38px 47px;
+      animation: orbPop 1.05s cubic-bezier(.2,.9,.1,1) both, orbPulse 2.4s 2.2s ease-in-out infinite;
+    }
+
+    .word-stroke {
+      font-family: Orbitron, Eurostile, Bank Gothic, Montserrat, Arial, sans-serif;
+      font-weight: 800;
+      font-size: 28px;
+      letter-spacing: 7px;
+      fill: transparent;
+      stroke: url(#textGradient);
+      stroke-width: 1.45;
+      stroke-linejoin: round;
+      stroke-dasharray: 440;
+      stroke-dashoffset: 440;
+      filter: url(#softGlow);
+      animation: writeOn 2.05s .45s cubic-bezier(.55,.02,.2,1) forwards,
+                 tronFlicker 3.2s 2.35s infinite;
+    }
+
+    .word-fill {
+      font-family: Orbitron, Eurostile, Bank Gothic, Montserrat, Arial, sans-serif;
+      font-weight: 800;
+      font-size: 28px;
+      letter-spacing: 7px;
+      fill: url(#textGradient);
+      opacity: 0;
+      filter: url(#softGlow);
+      animation: fillIn .55s 2.02s ease-out forwards,
+                 tronFlicker 3.2s 2.35s infinite;
+    }
+
+    .flash-line {
+      opacity: 0;
+      mix-blend-mode: screen;
+      animation: scanBurst 1.35s 1.45s ease-out both, scanLoop 3.4s 3s ease-in-out infinite;
+    }
+
+    .micro-sparks line {
+      stroke: #5ff4ff;
+      stroke-width: .8;
+      stroke-linecap: round;
+      opacity: 0;
+      filter: url(#hardFlash);
+      animation: spark 1.4s ease-out forwards;
+    }
+    .micro-sparks line:nth-child(1){animation-delay:1.8s}
+    .micro-sparks line:nth-child(2){animation-delay:2.0s}
+    .micro-sparks line:nth-child(3){animation-delay:2.14s}
+    .micro-sparks line:nth-child(4){animation-delay:2.25s}
+
+    @keyframes writeOn {
+      0% { stroke-dashoffset: 440; opacity:.25; }
+      65% { opacity:1; }
+      82% { filter:url(#hardFlash); }
+      100% { stroke-dashoffset: 0; opacity:1; filter:url(#softGlow); }
+    }
+
+    @keyframes fillIn {
+      0% { opacity:0; filter:url(#hardFlash); }
+      45% { opacity:1; filter:url(#hardFlash); }
+      65% { opacity:.58; }
+      100% { opacity:1; filter:url(#softGlow); }
+    }
+
+    @keyframes tronFlicker {
+      0%, 8%, 14%, 100% { opacity:1; }
+      10% { opacity:.45; }
+      11% { opacity:1; }
+      12% { opacity:.7; }
+    }
+
+    @keyframes orbPop {
+      0% { transform:scale(.35); opacity:0; filter:url(#hardFlash); }
+      45% { transform:scale(1.16); opacity:1; }
+      70% { transform:scale(.92); }
+      100% { transform:scale(1); }
+    }
+
+    @keyframes orbWake {
+      0% { transform:scale(.1); opacity:0; }
+      60% { opacity:.9; }
+      100% { transform:scale(1); opacity:.65; }
+    }
+
+    @keyframes orbPulse {
+      0%,100% { transform:scale(1); opacity:.82; }
+      50% { transform:scale(1.08); opacity:1; }
+    }
+
+    @keyframes scanBurst {
+      0% { opacity:0; transform:translateX(-70px); }
+      18% { opacity:1; }
+      70% { opacity:.95; }
+      100% { opacity:0; transform:translateX(190px); }
+    }
+
+    @keyframes scanLoop {
+      0%,45% { opacity:0; transform:translateX(-90px); }
+      55% { opacity:.65; }
+      100% { opacity:0; transform:translateX(210px); }
+    }
+
+    @keyframes spark {
+      0% { opacity:0; stroke-dasharray:0 12; }
+      30% { opacity:1; stroke-dasharray:10 2; }
+      100% { opacity:0; stroke-dasharray:0 12; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; }
+      .word-stroke { stroke-dashoffset:0; }
+      .word-fill { opacity:1; }
+    }
+  </style>
+
+  <rect width="228" height="94" fill="#0b0923"/>
+
+  <g class="orb-halo">
+    <circle cx="38" cy="47" r="31" fill="#7a3cff" opacity=".14" filter="url(#softGlow)"/>
+    <circle cx="38" cy="47" r="20" fill="#28dfff" opacity=".18" filter="url(#softGlow)"/>
+  </g>
+
+  <circle class="orb-core" cx="38" cy="47" r="11.7" fill="url(#orbGradient)" filter="url(#softGlow)"/>
+  <circle cx="34.2" cy="42.3" r="4.8" fill="#d8ffff" opacity=".52"/>
+
+  <g transform="translate(68 58)">
+    <text class="word-stroke" x="0" y="0">VYPER</text>
+    <text class="word-fill" x="0" y="0">VYPER</text>
+  </g>
+
+  <rect class="flash-line" x="-60" y="33" width="108" height="28" fill="url(#scan)" filter="url(#hardFlash)"/>
+
+  <g class="micro-sparks">
+    <line x1="69" y1="36" x2="84" y2="36"/>
+    <line x1="103" y1="62" x2="121" y2="62"/>
+    <line x1="155" y1="35" x2="175" y2="35"/>
+    <line x1="205" y1="60" x2="218" y2="60"/>
+  </g>
+</svg>
