@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildPrimitive } from './primitives';
-import { growSelection, shrinkSelection, convertSelection, edgeRing, edgeLoop } from './selectionOps';
+import { growSelection, shrinkSelection, convertSelection, edgeRing, edgeLoop, faceLoop, vertexLoop, loopThroughVertices, loopThroughFaces, pathBetweenVertices, pathBetweenFaces } from './selectionOps';
 
 /** Edge valence (incident-edge count) per vertex, for picking interior components. */
 function valences(m: ReturnType<typeof buildPrimitive>): Map<number, number> {
@@ -63,5 +63,70 @@ describe('edgeRing / edgeLoop', () => {
     const m = buildPrimitive('cube', 2);
     // A cube has only valence-3 verts (loops stop), but the quad ring is the 4-edge belt.
     expect(edgeRing(m, m.liveEdges()[0]).length).toBe(4);
+  });
+
+  it('faceLoop collects the strip of faces the edge ring crosses', () => {
+    const m = buildPrimitive('grid', 4);
+    const loop = faceLoop(m, m.liveEdges()[0]);
+    expect(loop.length).toBeGreaterThan(1);
+    expect(loop.every((f) => !m.faces[f].removed)).toBe(true); // all live faces
+    // The face strip matches the edge ring's span (a band across the grid).
+    expect(loop.length).toBe(edgeRing(m, m.liveEdges()[0]).length - 1);
+  });
+
+  it('vertexLoop strings the vertices along an edge loop', () => {
+    const m = buildPrimitive('grid', 4);
+    const val = valences(m);
+    const interior = m.liveEdges().find((e) => {
+      const [a, b] = m.edgeVertices(e);
+      return val.get(a) === 4 && val.get(b) === 4;
+    })!;
+    const vloop = vertexLoop(m, interior);
+    // One more vertex than edges in the loop (an open chain across the grid).
+    expect(vloop.length).toBe(edgeLoop(m, interior).length + 1);
+  });
+});
+
+describe('loopThroughVertices / loopThroughFaces (two-anchor loops)', () => {
+  it('finds the vertex loop through two adjacent verts', () => {
+    const m = buildPrimitive('grid', 4);
+    const val = valences(m);
+    const interior = m.liveEdges().find((e) => {
+      const [a, b] = m.edgeVertices(e);
+      return val.get(a) === 4 && val.get(b) === 4;
+    })!;
+    const [a, b] = m.edgeVertices(interior);
+    const loop = loopThroughVertices(m, a, b);
+    expect(loop).not.toBeNull();
+    expect(loop!.includes(a) && loop!.includes(b)).toBe(true);
+    expect(loop!.length).toBeGreaterThan(2);
+  });
+
+  it('finds the face loop through two adjacent faces', () => {
+    const m = buildPrimitive('grid', 4);
+    const interior = m.liveEdges().find((e) => m.edgeFaces(e).length === 2)!;
+    const [f1, f2] = m.edgeFaces(interior);
+    const loop = loopThroughFaces(m, f1, f2);
+    expect(loop).not.toBeNull();
+    expect(loop!.includes(f1) && loop!.includes(f2)).toBe(true);
+    expect(loop!.length).toBeGreaterThan(2);
+  });
+
+  it('returns null when the two anchors share no loop', () => {
+    const m = buildPrimitive('grid', 4); // 9×9 verts, 8×8 faces, row-major
+    expect(loopThroughVertices(m, 0, 10)).toBeNull(); // diagonal corners — no common row/col
+    expect(loopThroughFaces(m, 0, 9)).toBeNull(); // diagonal faces — different strips
+  });
+
+  it('pathBetween* connects any two anchors (the fallback when no loop is shared)', () => {
+    const m = buildPrimitive('grid', 4);
+    const vpath = pathBetweenVertices(m, 0, 10); // diagonal corners → a stair-step chain
+    expect(vpath.length).toBeGreaterThan(2);
+    expect(vpath[0]).toBe(0);
+    expect(vpath[vpath.length - 1]).toBe(10);
+    const fpath = pathBetweenFaces(m, 0, 9); // diagonal faces → a chain across the grid
+    expect(fpath.length).toBeGreaterThan(2);
+    expect(fpath[0]).toBe(0);
+    expect(fpath[fpath.length - 1]).toBe(9);
   });
 });

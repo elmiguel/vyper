@@ -3,7 +3,7 @@ import { Scene } from '@babylonjs/core/scene';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
-import { Vector3, Quaternion, Matrix } from '@babylonjs/core/Maths/math.vector';
+import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
@@ -17,15 +17,17 @@ import type { LinesMesh } from '@babylonjs/core/Meshes/linesMesh';
 import type { CustomGeometry } from '@/types';
 import {
   computeNormals,
-  nearestVertex,
-  nearestEdge,
   buildFaceHighlight,
   buildVertexHighlight,
   buildEdgeHighlight,
   buildWireframe,
   buildGroundGrid,
+  buildIslandColors,
 } from './modelerSceneGeom';
+import { VertexBuffer } from '@babylonjs/core/Buffers/buffer';
+import { ModelerPicker } from './modelerPicker';
 import { wireTransformGizmos } from './modelerGizmoWiring';
+import { HoverHighlight } from './modelerHover';
 import { ModelerEditTools, type EditTool, type LoopCutHandlers, type KnifeHandlers, type DrawPolyHandlers } from './ModelerEditTools';
 import { ToolGizmo } from './ToolGizmo';
 import { SketchTopoSession, type SketchTopoHandlers } from './retopo/SketchTopoSession';
@@ -79,10 +81,14 @@ export class ModelerScene {
   private faceHi?: Mesh;
   private vertHi?: Mesh;
   private edgeHi?: LinesMesh;
-  /** Edge under the cursor in edge mode (hover feedback), distinct from the selection. */
-  private hoverEdge?: LinesMesh;
+  /** Component-under-cursor hover highlight (vertex / edge / face). */
+  private readonly hover: HoverHighlight;
   /** Last left-button press (event time + screen pos), for manual double-click detection. */
   private lastDown = { t: -Infinity, x: 0, y: 0 };
+  /** Focused object's dense polygon indices (dim/lock others), or null when nothing is focused. */
+  private activePolys: Set<number> | null = null;
+  /** Compacted vertex indices of the focused object (for hover gating). */
+  private activeVerts: Set<number> | null = null;
   /** The geometry currently displayed (kept so the wireframe can rebuild on toggle). */
   private currentGeo?: CustomGeometry;
   private readonly mat: StandardMaterial;
@@ -109,6 +115,8 @@ export class ModelerScene {
   private readonly toolGizmo: ToolGizmo;
   /** Sketch-retopology session (freehand quad-cage drawing over the reference surface). */
   private readonly sketchSession: SketchTopoSession;
+  /** Cursor → pick resolver (polygon / vertex / edge / surface point + projection). */
+  private readonly picker: ModelerPicker;
 
   constructor(canvas: HTMLCanvasElement) {
     this.engine = new Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
@@ -181,14 +189,23 @@ export class ModelerScene {
       getTransform: () => this.transform,
     });
 
+    this.hover = new HoverHighlight(this.scene);
+
     // Indicator gizmo for the loop-cut drag, on the same utility layer.
     this.toolGizmo = new ToolGizmo(this.scene, layer, this.camera, canvas);
+
+    this.picker = new ModelerPicker(this.scene, this.camera, this.engine, {
+      mesh: () => this.mesh,
+      geo: () => this.currentGeo,
+      triToFace: () => this.triToFace,
+      mode: () => this.componentMode,
+    });
 
     // Sketch-retopology session: draws a quad cage over the current mesh (the reference).
     this.sketchSession = new SketchTopoSession(
       this.scene,
       () => this.currentGeo,
-      () => this.pickSurfacePoint(),
+      () => this.picker.pickSurfacePoint(),
       this.camera,
       canvas,
     );
@@ -196,7 +213,7 @@ export class ModelerScene {
     this.editTools = new ModelerEditTools(
       this.scene,
       () => this.currentGeo,
-      (x, y, z) => this.project(x, y, z),
+      this.picker.project,
       {
         mode: () => (this.gizmoMode === 'rotate' ? 'rotate' : 'move'),
         begin: (mode, c) => this.toolGizmo.begin(mode, c),
@@ -209,25 +226,25 @@ export class ModelerScene {
     this.scene.onPointerObservable.add((info) => {
       const e = info.event as PointerEvent;
       if (this.editTools.route(info.type, e)) {
-        this.clearHoverEdge();
+        this.hover.clear();
         return; // a tool owns input while active
       }
       if (info.type === 4 /* POINTERMOVE */) {
-        this.updateHoverEdge(e);
+        this.updateHover(e);
         return;
       }
       if (info.type !== 1 /* POINTERDOWN */) return;
       if (this.activeGizmoHovered()) return; // interacting with a gizmo handle isn't a pick
       if (e.button !== 0 || e.altKey) return; // left button only; alt is reserved for nav
       // Shift adds to the selection; Ctrl/Cmd removes from it; a plain click replaces. A
-      // double-click expands to the whole edge loop of the clicked edge (edge mode). Detect
-      // the double-click ourselves (two quick downs at the same spot) rather than via
-      // Babylon's POINTERDOUBLETAP, which is heuristic and misses often.
+      // double-click expands to the loop in the active mode (edge/vertex/face) through the
+      // edge nearest the cursor. We detect the double-click ourselves (two quick downs at the
+      // same spot) rather than via Babylon's POINTERDOUBLETAP, which is heuristic and misses.
       const x = this.scene.pointerX;
       const y = this.scene.pointerY;
       const isDouble = e.timeStamp - this.lastDown.t < 400 && Math.hypot(x - this.lastDown.x, y - this.lastDown.y) < 6;
       this.lastDown = { t: e.timeStamp, x, y };
-      this.onPick?.(this.pickComponent(), e.shiftKey, e.ctrlKey || e.metaKey, isDouble);
+      this.onPick?.(this.picker.pickComponent(), e.shiftKey, e.ctrlKey || e.metaKey, isDouble);
     });
     // The knife finishes on right-click; suppress the browser context menu over the canvas.
     canvas.addEventListener('contextmenu', (ev) => {
@@ -247,26 +264,52 @@ export class ModelerScene {
   /** Set which component (object/vertex/edge/face) clicks pick. */
   setComponentMode(mode: ComponentMode): void {
     this.componentMode = mode;
-    if (mode !== 'edge') this.clearHoverEdge();
+    this.hover.clear(); // hover rebuilds for the new mode on the next move
   }
 
-  /** Highlight the edge under the cursor (edge mode only, when no tool owns input). Drawn in
-   *  a distinct color from the selection so hover and selected edges read apart. */
-  private updateHoverEdge(e: PointerEvent): void {
-    if (this.componentMode !== 'edge' || this.editTools.active || e.buttons !== 0) {
-      this.clearHoverEdge();
+  /** Set the focused object's polygons: dim the rest (vertex colors) and gate hover/pick to
+   *  it. Null clears focus (all objects bright + pickable, e.g. in Object mode). */
+  setActivePolygons(polys: number[] | null): void {
+    this.activePolys = polys ? new Set(polys) : null;
+    this.activeVerts = null;
+    if (polys && this.currentGeo?.polygons) {
+      const verts = new Set<number>();
+      for (const p of polys) for (const v of this.currentGeo.polygons[p] ?? []) verts.add(v);
+      this.activeVerts = verts;
+    }
+    if (this.mesh && this.currentGeo) {
+      this.mesh.setVerticesData(VertexBuffer.ColorKind, buildIslandColors(this.currentGeo, this.triToFace, this.activePolys));
+      // Colors only multiply the diffuse to dim non-focused islands — they must NOT make the
+      // mesh transparent. A 4-component color buffer otherwise flips on vertex alpha, routing
+      // everything through the alpha-blend pipeline (the "all objects semi-transparent" bug).
+      this.mesh.hasVertexAlpha = false;
+    }
+  }
+
+  /** Highlight the component under the cursor for the active mode (vertex / edge / face),
+   *  unless a tool owns input or a button is held (mid-drag). Hover is gated to the focused
+   *  object so dimmed objects don't light up. */
+  private updateHover(e: PointerEvent): void {
+    if (this.editTools.active || e.buttons !== 0 || !this.currentGeo) {
+      this.hover.clear();
       return;
     }
-    const edge = this.pickEdge();
-    this.clearHoverEdge();
-    if (edge && this.currentGeo) {
-      this.hoverEdge = buildEdgeHighlight(this.scene, this.currentGeo, [edge], Color3.FromHexString('#ff2e97'));
+    const geo = this.currentGeo;
+    if (this.componentMode === 'vertex') {
+      const v = this.picker.pickVertex();
+      v !== null && this.vertActive(v) ? this.hover.vertex(geo, v) : this.hover.clear();
+    } else if (this.componentMode === 'edge') {
+      const edge = this.picker.pickEdge();
+      edge && this.vertActive(edge[0]) && this.vertActive(edge[1]) ? this.hover.edge(geo, edge) : this.hover.clear();
+    } else {
+      const f = this.picker.pickFace(); // face & object modes both hover the face under the cursor
+      f !== null && (!this.activePolys || this.activePolys.has(f)) ? this.hover.face(geo, f) : this.hover.clear();
     }
   }
 
-  private clearHoverEdge(): void {
-    this.hoverEdge?.dispose();
-    this.hoverEdge = undefined;
+  /** Whether a compacted vertex belongs to the focused object (true when nothing is focused). */
+  private vertActive(v: number): boolean {
+    return !this.activeVerts || this.activeVerts.has(v);
   }
 
   setOnTransform(handlers: TransformHandlers): void {
@@ -293,7 +336,7 @@ export class ModelerScene {
   setEditTool(tool: EditTool): void {
     this.editTools.setEditTool(tool);
     if (tool !== 'none') this.detachAll();
-    this.clearHoverEdge();
+    this.hover.clear();
   }
 
   /** Finish the active tool's in-progress path (Enter key). Returns true if handled. */
@@ -362,7 +405,7 @@ export class ModelerScene {
   setGeometry(geo: CustomGeometry): void {
     this.mesh?.dispose();
     this.wire?.dispose();
-    this.clearHoverEdge(); // stale hover references the old geometry
+    this.hover.clear(); // stale hover references the old geometry
     const mesh = new Mesh('model', this.scene);
     const vd = new VertexData();
     vd.positions = geo.positions;
@@ -410,61 +453,6 @@ export class ModelerScene {
     const info = this.mesh.getBoundingInfo().boundingSphere;
     this.camera.setTarget(info.centerWorld.clone());
     this.camera.radius = Math.max(info.radiusWorld * 3, 1.5);
-  }
-
-  /** Pick whatever the active component mode targets, or null on a miss. */
-  private pickComponent(): ModelerPick {
-    if (this.componentMode === 'vertex') {
-      const v = this.pickVertex();
-      return v === null ? null : { kind: 'vertex', vertex: v };
-    }
-    if (this.componentMode === 'edge') {
-      const e = this.pickEdge();
-      return e === null ? null : { kind: 'edge', edge: e };
-    }
-    if (this.componentMode === 'object') {
-      const f = this.pickFace();
-      return f === null ? null : { kind: 'object', face: f };
-    }
-    const f = this.pickFace();
-    return f === null ? null : { kind: 'face', face: f };
-  }
-
-  /** Pick the polygon under the cursor (via the triangle→face map), or null. */
-  private pickFace(): FacePick {
-    if (!this.mesh) return null;
-    const pick = this.scene.pick(this.scene.pointerX, this.scene.pointerY, (m) => m === this.mesh);
-    if (!pick?.hit || pick.faceId < 0) return null;
-    const f = this.triToFace[pick.faceId];
-    return f === undefined ? null : f;
-  }
-
-  /** The 3D surface point under the cursor on the model mesh, or null on a miss. Used by the
-   *  sketch-retopo session to project freehand strokes onto the reference surface. */
-  private pickSurfacePoint(): [number, number, number] | null {
-    if (!this.mesh) return null;
-    const pick = this.scene.pick(this.scene.pointerX, this.scene.pointerY, (m) => m === this.mesh);
-    const p = pick?.pickedPoint;
-    return pick?.hit && p ? [p.x, p.y, p.z] : null;
-  }
-
-  /** Project a world point to screen pixels (matching `scene.pointerX/Y`). */
-  private project(x: number, y: number, z: number): { x: number; y: number } {
-    const vp = this.camera.viewport.toGlobal(this.engine.getRenderWidth(), this.engine.getRenderHeight());
-    const p = Vector3.Project(new Vector3(x, y, z), Matrix.Identity(), this.scene.getTransformMatrix(), vp);
-    return { x: p.x, y: p.y };
-  }
-
-  /** Nearest compacted vertex to the cursor (within a pixel threshold), or null. */
-  private pickVertex(): number | null {
-    if (!this.currentGeo) return null;
-    return nearestVertex(this.currentGeo, (x, y, z) => this.project(x, y, z), this.scene.pointerX, this.scene.pointerY, 14);
-  }
-
-  /** Nearest compacted polygon edge to the cursor (within a pixel threshold), or null. */
-  private pickEdge(): [number, number] | null {
-    if (!this.currentGeo) return null;
-    return nearestEdge(this.currentGeo, (x, y, z) => this.project(x, y, z), this.scene.pointerX, this.scene.pointerY, 12);
   }
 
   /** A square (quad) grid of lines in the XZ plane — not a wireframe ground, which

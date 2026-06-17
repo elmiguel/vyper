@@ -3,7 +3,7 @@ import { triangulateFaces, quadrangulateFaces, pokeFaces, reverseFaces, extractF
 import { mergeVertices, collapseEdges, averageVertices } from '@/kernel/operations/weldOps';
 import {
   growSelection as kGrow, shrinkSelection as kShrink, convertSelection as kConvert,
-  edgeLoop as kEdgeLoop, edgeRing as kEdgeRing, type Comp,
+  edgeRing as kEdgeRing, loopOrPath, type Comp,
 } from '@/kernel/selectionOps';
 import type { EditActionsCtx } from './modelerEditActions';
 import type { ComponentMode } from './modelerStore';
@@ -31,8 +31,9 @@ export interface MeshActions {
   grow: () => void;
   /** Shrink the component selection by one ring. */
   shrink: () => void;
-  /** Select the edge loop through the first selected edge (edge mode). */
-  selectEdgeLoop: () => void;
+  /** Select the loop through the selection's anchors: the edge loop through a selected edge,
+   *  or — given two selected verts/faces — the vertex/face loop running through both. */
+  selectLoop: () => void;
   /** Select the edge ring through the first selected edge (edge mode). */
   selectEdgeRing: () => void;
   /** Convert the current selection to another component type. */
@@ -97,10 +98,11 @@ export function createMeshActions(ctx: EditActionsCtx): MeshActions {
       if (component === 'object' || selection.length === 0) return;
       reselect(kShrink(ctx.mesh(), component as Comp, selection));
     },
-    selectEdgeLoop: () => {
+    selectLoop: () => {
       const { component, selection } = get();
-      if (component !== 'edge' || selection[0] === undefined) return;
-      reselect(kEdgeLoop(ctx.mesh(), selection[0]));
+      if (component === 'object') return;
+      const ids = loopOrPath(ctx.mesh(), component as Comp, selection);
+      if (ids.length) reselect(ids);
     },
     selectEdgeRing: () => {
       const { component, selection } = get();

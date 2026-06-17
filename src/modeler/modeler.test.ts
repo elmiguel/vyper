@@ -146,35 +146,129 @@ describe('modelerStore — kernel-driven', () => {
     expect(s().faceCount).toBe(before); // preview is non-destructive
   });
 
-  it('double-click selects an edge loop; shift adds it, ctrl removes it (edge mode)', () => {
-    s().addPrimitive('grid'); // 8×8 quads → valence-4 interior, so loops actually extend
+  // Add an 8×8 grid (valence-4 interior so loops extend) and focus it, then find a compacted
+  // edge whose edge loop spans it (>4 edges). Focus matters: with the cube also present, the
+  // focus lock would reject grid picks unless the grid is the active object.
+  const seedGridEdgeLoop = (): [number, number] => {
+    s().addPrimitive('grid');
+    s().setComponent('object');
+    s().applyPick({ kind: 'object', face: s().geometry.polygons!.length - 1 }, false, false, false); // focus the grid
     s().setComponent('edge');
     const polys = s().geometry.polygons!;
-    // Find a compacted edge whose loop has more than one edge (an interior edge).
-    let seed: [number, number] | null = null;
-    let loopLen = 0;
-    outer: for (const loop of polys) {
+    for (const loop of polys) {
       for (let i = 0; i < loop.length; i++) {
         const e: [number, number] = [loop[i], loop[(i + 1) % loop.length]];
-        s().applyPick({ kind: 'edge', edge: e }, false, false, true); // double-click (loop)
-        if (s().selection.length > 1) {
-          seed = e;
-          loopLen = s().selection.length;
-          break outer;
-        }
+        s().clearSelection();
+        s().applyPick({ kind: 'edge', edge: e }, false, false, true); // double-click → edge loop
+        if (s().selection.length > 4) return e;
       }
     }
-    expect(seed).not.toBeNull();
+    throw new Error('no interior loop found');
+  };
+
+  it('double-click selects an edge loop; shift adds it, ctrl removes it (edge mode)', () => {
+    const seed = seedGridEdgeLoop();
+    const loopLen = s().selection.length;
     expect(loopLen).toBeGreaterThan(1); // the loop spans the grid, not just one edge
-    // Ctrl double-click deselects the whole loop.
-    s().applyPick({ kind: 'edge', edge: seed!, }, false, true, true);
+    s().applyPick({ kind: 'edge', edge: seed }, false, true, true); // ctrl double-click → deselect
     expect(s().selection).toHaveLength(0);
-    // Shift double-click adds the loop back.
-    s().applyPick({ kind: 'edge', edge: seed! }, true, false, true);
+    s().applyPick({ kind: 'edge', edge: seed }, true, false, true); // shift double-click → re-add
     expect(s().selection).toHaveLength(loopLen);
-    // A plain single-click (no loop) on one of its edges replaces with just that edge.
-    s().applyPick({ kind: 'edge', edge: seed! }, false, false, false);
+    // A plain single-click on one of its edges replaces with just that edge.
+    s().applyPick({ kind: 'edge', edge: seed }, false, false, false);
     expect(s().selection).toHaveLength(1);
+  });
+
+  it('double-clicking after selecting anchors expands the loop (vertex & face)', () => {
+    const seed = seedGridEdgeLoop(); // interior grid edge [a,b]: its endpoints/faces are anchors
+
+    // VERTEX — the real interaction: select one vertex, then DOUBLE-CLICK the other. The
+    // double-click's first down replaces with the clicked vertex; the second (loop) expands
+    // through the anchor that was selected before it.
+    s().setComponent('vertex');
+    s().applyPick({ kind: 'vertex', vertex: seed[0] }, false, false, false); // anchor
+    s().applyPick({ kind: 'vertex', vertex: seed[1] }, false, false, false); // dbl-click down 1
+    s().applyPick({ kind: 'vertex', vertex: seed[1] }, false, false, true); // dbl-click down 2
+    expect(s().selection.length).toBeGreaterThan(2); // expanded to the vertex loop
+
+    // FACE — the two grid faces sharing the seed edge are adjacent anchors on the focused grid.
+    s().setComponent('face');
+    const polys = s().geometry.polygons!;
+    const adj = polys.map((_, i) => i).filter((i) => polys[i].includes(seed[0]) && polys[i].includes(seed[1]));
+    expect(adj.length).toBe(2);
+    s().applyPick({ kind: 'face', face: adj[0] }, false, false, false); // anchor
+    s().applyPick({ kind: 'face', face: adj[1] }, false, false, false); // dbl-click down 1
+    s().applyPick({ kind: 'face', face: adj[1] }, false, false, true); // dbl-click down 2 → loop
+    expect(s().selection.length).toBeGreaterThan(2);
+  });
+
+  it('selectLoop (button / L key) expands the loop from the current selection', () => {
+    const seed = seedGridEdgeLoop();
+    s().setComponent('vertex');
+    s().applyPick({ kind: 'vertex', vertex: seed[0] }, false, false, false);
+    s().applyPick({ kind: 'vertex', vertex: seed[1] }, true, false, false); // shift-add
+    expect(s().selection).toHaveLength(2);
+    s().selectLoop();
+    expect(s().selection.length).toBeGreaterThan(2);
+    // A single anchor can't choose a direction → no-op.
+    s().clearSelection();
+    s().applyPick({ kind: 'vertex', vertex: seed[0] }, false, false, false);
+    s().selectLoop();
+    expect(s().selection).toHaveLength(1);
+  });
+
+  it('locks component picking to the focused object; Object mode switches focus', () => {
+    s().addPrimitive('grid'); // cube (island A, faces 0..5) + grid (island B)
+    const gridFace = s().geometry.polygons!.length - 1;
+    // Focus the cube in Object mode.
+    s().setComponent('object');
+    s().applyPick({ kind: 'object', face: 0 }, false, false, false);
+    expect(s().activePolygonIndices()).not.toBeNull();
+    // Face mode: a cube face picks; a grid face is ignored (locked to the cube — no jump).
+    s().setComponent('face');
+    s().applyPick({ kind: 'face', face: 0 }, false, false, false);
+    expect(s().selection).toHaveLength(1);
+    s().applyPick({ kind: 'face', face: gridFace }, false, false, false); // other object
+    expect(s().selection).toHaveLength(1); // unchanged — focus didn't jump
+    // Switch focus to the grid in Object mode, then the grid is pickable.
+    s().setComponent('object');
+    s().applyPick({ kind: 'object', face: gridFace }, false, false, false);
+    s().setComponent('face');
+    s().applyPick({ kind: 'face', face: gridFace }, false, false, false);
+    expect(s().selection).toHaveLength(1);
+  });
+
+  it('groups objects to focus/select as one; ungroup splits them back', () => {
+    s().addPrimitive('grid'); // cube (6 faces) + grid (64) = two objects
+    const gridFace = s().geometry.polygons!.length - 1;
+    s().setComponent('object');
+    s().applyPick({ kind: 'object', face: 0 }, false, false, false); // cube
+    s().applyPick({ kind: 'object', face: gridFace }, true, false, false); // shift-add grid
+    const both = s().selection.length;
+    expect(both).toBe(6 + 64);
+
+    s().group();
+    expect(s().selectionGrouped()).toBe(true);
+    // Clicking either object now focuses/selects the whole group.
+    s().applyPick({ kind: 'object', face: 0 }, false, false, false);
+    expect(s().selection).toHaveLength(both);
+
+    s().ungroup();
+    expect(s().selectionGrouped()).toBe(false);
+    // Now clicking the cube focuses only the cube island again.
+    s().applyPick({ kind: 'object', face: 0 }, false, false, false);
+    expect(s().selection).toHaveLength(6);
+  });
+
+  it('selectLoop falls back to the path between two anchors that share no loop', () => {
+    s().addPrimitive('grid');
+    s().setComponent('vertex');
+    const quad = s().geometry.polygons!.find((p) => p.length === 4)!;
+    // Diagonal corners of a quad: different row + column → no shared vertex loop.
+    s().applyPick({ kind: 'vertex', vertex: quad[0] }, false, false, false);
+    s().applyPick({ kind: 'vertex', vertex: quad[2] }, true, false, false);
+    s().selectLoop();
+    expect(s().selection.length).toBeGreaterThanOrEqual(3); // a connecting path, not nothing
   });
 
   it('sketch-retopo commit replaces the mesh with the quad cage and undoes', () => {

@@ -5,7 +5,10 @@ import { buildPrimitive, type KernelPrimitive } from '@/kernel/primitives';
 import { toGeometry, fromGeometry } from '@/kernel/render';
 import { CommandStack, snapshotCommand } from '@/kernel/commands';
 import { extrudeFaces } from '@/kernel/operations/extrude';
-import { edgeLoop } from '@/kernel/selectionOps';
+import { loopOrPath, edgeLoop, type Comp } from '@/kernel/selectionOps';
+import { ActiveObject } from './modelerFocus';
+import { ObjectGroups } from './modelerGroups';
+import { createPickActions, type PickCtx } from './modelerPicking';
 import type { KnifePoint } from '@/kernel/operations/knife';
 import { createEditActions, type Clip, type EditActionsCtx } from './modelerEditActions';
 import { createTransformActions } from './modelerTransformActions';
@@ -54,6 +57,11 @@ export interface ModelerState extends MeshActions {
   revision: number;
   /** Bumped when the selection changes (drives highlight refresh). */
   selRevision: number;
+  /** Bumped when the focused (active) object changes (drives the dim/lock overlay). */
+  activeRevision: number;
+  /** Dense polygon indices of the focused object, or null when nothing is focused (= all
+   *  objects active/pickable). Drives the viewport's dim + pick-lock. */
+  activePolygonIndices: () => number[] | null;
   faceCount: number;
   canUndo: boolean;
   canRedo: boolean;
@@ -81,6 +89,12 @@ export interface ModelerState extends MeshActions {
   init: () => void;
   /** Add a fresh primitive to the model (a new island beside the current geometry). */
   addPrimitive: (kind: KernelPrimitive) => void;
+  /** Group the selected objects so they focus/select/transform as one (object mode, ≥2 objects). */
+  group: () => void;
+  /** Ungroup the selected object back into its constituent islands (object mode). */
+  ungroup: () => void;
+  /** Whether the current object-mode selection spans a group (drives Ungroup enablement). */
+  selectionGrouped: () => boolean;
   /** Toggle a picked face (by polygon index) into the selection. */
   pickFace: (polygonIndex: number | null, additive: boolean) => void;
   /** Apply a viewport pick per the active component mode. `additive` (Shift) adds to the
@@ -146,6 +160,10 @@ export interface ModelerState extends MeshActions {
 
 // Kernel + command stack live outside the reactive state (they're mutable instances).
 let mesh = new HalfEdgeMesh();
+/** The focused object — component picking/editing locks to it; see {@link ActiveObject}. */
+const active = new ActiveObject();
+/** Object groups — grouped islands focus/select as one; see {@link ObjectGroups}. */
+const groups = new ObjectGroups();
 let faceOrder: number[] = [];
 // Compaction maps mirroring `toGeometry` so the viewport (which works in dense, compacted
 // indices) and the kernel (sparse ids) can be translated for vertex/edge picking + highlight.
@@ -201,7 +219,9 @@ export const useModelerStore = create<ModelerState>((set, get) => {
   /** Re-bake geometry + compaction maps from the kernel and bump the revision. */
   const rebuild = () => {
     refreshMaps(mesh);
-    set((s) => ({ geometry: toGeometry(mesh), revision: s.revision + 1, faceCount: faceOrder.length, canUndo: stack.canUndo(), canRedo: stack.canRedo() }));
+    groups.refresh(mesh); // re-sync group membership before the focus, which may read it
+    active.refresh(mesh); // re-identify the focused island after ids were reassigned
+    set((s) => ({ geometry: toGeometry(mesh), revision: s.revision + 1, activeRevision: s.activeRevision + 1, faceCount: faceOrder.length, canUndo: stack.canUndo(), canRedo: stack.canRedo() }));
   };
   /** Kernel vertex ids the active selection resolves to (drives transforms + centroid). */
   const selectedVertices = (): number[] => {
@@ -220,19 +240,6 @@ export const useModelerStore = create<ModelerState>((set, get) => {
     }
     return [...verts];
   };
-  /** Replace / add / remove a set of ids in the selection (drives Shift-add, Ctrl-remove). */
-  const updateSelection = (ids: number[], mode: 'replace' | 'add' | 'remove') => {
-    set((s) => {
-      let selection: number[];
-      if (mode === 'replace') selection = [...new Set(ids)];
-      else if (mode === 'add') selection = [...new Set([...s.selection, ...ids])];
-      else {
-        const drop = new Set(ids);
-        selection = s.selection.filter((x) => !drop.has(x));
-      }
-      return { selection, objectSelected: s.component === 'object' ? selection.length > 0 : s.objectSelected, selRevision: s.selRevision + 1 };
-    });
-  };
   /** Persist the baked geometry into the project's mesh entity (so save() captures it). */
   const sync = () => {
     const id = projectMeshEntityId();
@@ -244,6 +251,10 @@ export const useModelerStore = create<ModelerState>((set, get) => {
     faceOrder: () => faceOrder, selectedVertices, kernelEdgeFromCompact,
     getClipboard: () => clipboard, setClipboard: (c) => { clipboard = c; },
   };
+  const pickCtx: PickCtx = {
+    get, set, mesh: () => mesh, active, groups,
+    vertOrder: () => vertOrder, faceOrder: () => faceOrder, edgeFromCompact: kernelEdgeFromCompact,
+  };
 
   return {
     geometry: { positions: [], indices: [], normals: [] },
@@ -252,6 +263,7 @@ export const useModelerStore = create<ModelerState>((set, get) => {
     objectSelected: false,
     revision: 0,
     selRevision: 0,
+    activeRevision: 0,
     faceCount: 0,
     canUndo: false,
     canRedo: false,
@@ -280,6 +292,8 @@ export const useModelerStore = create<ModelerState>((set, get) => {
       const custom = ent?.mesh?.custom;
       mesh = custom ? fromGeometry(custom) : buildPrimitive('cube', 2);
       stack.clear();
+      active.clear(); // nothing focused until the user picks an object
+      groups.clear();
       set((s) => ({ selection: [], objectSelected: false }));
       rebuild();
     },
@@ -311,40 +325,23 @@ export const useModelerStore = create<ModelerState>((set, get) => {
       });
     },
 
-    applyPick: (pick, additive = false, subtract = false, loop = false) => {
-      const component = get().component;
-      const mode = subtract ? 'remove' : additive ? 'add' : 'replace';
-      if (pick === null) {
-        if (mode === 'replace') get().clearSelection();
-        return;
-      }
-      if (pick.kind === 'object' && component === 'object') {
-        // Select the clicked island (connected component), not the whole model.
-        const kernelFace = faceOrder[pick.face];
-        if (kernelFace !== undefined) updateSelection(mesh.faceIsland(kernelFace), mode);
-        return;
-      }
-      if (pick.kind === 'face' && component === 'face') {
-        const kernelFace = faceOrder[pick.face];
-        if (kernelFace !== undefined) updateSelection([kernelFace], mode);
-        return;
-      }
-      if (pick.kind === 'vertex' && component === 'vertex') {
-        const vid = vertOrder[pick.vertex];
-        if (vid !== undefined) updateSelection([vid], mode);
-        return;
-      }
-      if (pick.kind === 'edge' && component === 'edge') {
-        const a = vertOrder[pick.edge[0]];
-        const b = vertOrder[pick.edge[1]];
-        const eid = a !== undefined && b !== undefined ? edgeByPair.get(pairKey(a, b)) : undefined;
-        // Double-click expands to the whole edge loop through the clicked edge; the modifier
-        // (replace / shift-add / ctrl-remove) then applies to every edge in that loop.
-        if (eid !== undefined) updateSelection(loop ? edgeLoop(mesh, eid) : [eid], mode);
-      }
-    },
+    ...createPickActions(pickCtx),
 
-    clearSelection: () => set((s) => ({ selection: [], objectSelected: false, selRevision: s.selRevision + 1 })),
+    group: () => {
+      const faces = get().selection;
+      if (get().component !== 'object' || faces.length === 0) return;
+      groups.group(mesh, faces);
+      active.setIslands(mesh, groups.islandsForFocus(mesh, faces[0])); // focus the new group
+      set((s) => ({ activeRevision: s.activeRevision + 1 }));
+    },
+    ungroup: () => {
+      const faces = get().selection;
+      if (get().component !== 'object' || faces.length === 0) return;
+      groups.ungroup(mesh, faces);
+      active.setFromFace(mesh, faces[0]); // collapse focus back to the single clicked island
+      set((s) => ({ activeRevision: s.activeRevision + 1 }));
+    },
+    selectionGrouped: () => get().selection.length > 0 && groups.isGrouped(mesh, get().selection[0]),
 
     extrude: (distance = 0.5) => {
       const faces = get().selection;

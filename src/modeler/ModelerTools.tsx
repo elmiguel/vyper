@@ -26,9 +26,14 @@ export function ModelerTools() {
   const canUndo = useModelerStore((s) => s.canUndo);
   const canRedo = useModelerStore((s) => s.canRedo);
   const addPrimitive = useModelerStore((s) => s.addPrimitive);
+  const group = useModelerStore((s) => s.group);
+  const ungroup = useModelerStore((s) => s.ungroup);
+  useModelerStore((s) => s.activeRevision); // re-render when grouping/focus changes
+  const selectionGrouped = useModelerStore((s) => s.selectionGrouped)();
   const extrude = useModelerStore((s) => s.extrude);
   const connect = useModelerStore((s) => s.connect);
   const bridge = useModelerStore((s) => s.bridge);
+  const selectLoop = useModelerStore((s) => s.selectLoop);
   const setEditTool = useModelerStore((s) => s.setEditTool);
   const retopoResolution = useModelerStore((s) => s.retopoResolution);
   const setRetopoResolution = useModelerStore((s) => s.setRetopoResolution);
@@ -68,12 +73,43 @@ export function ModelerTools() {
             {component === 'edge' && (
               <button className="studio-btn" disabled={selection.length < 2} onClick={() => bridge()}>bridge</button>
             )}
+            {component === 'object' && (
+              <>
+                <button
+                  className="studio-btn"
+                  title="Group the selected objects so they focus/move as one (⌘/Ctrl+G)"
+                  disabled={selection.length === 0}
+                  onClick={() => group()}
+                >
+                  group
+                </button>
+                <button
+                  className="studio-btn"
+                  title="Ungroup the selected object (⇧⌘/Ctrl+G)"
+                  disabled={!selectionGrouped}
+                  onClick={() => ungroup()}
+                >
+                  ungroup
+                </button>
+              </>
+            )}
+            {component !== 'object' && (
+              <button
+                className="studio-btn"
+                title="L — select the loop through the selection (edge: one selected edge; vertex/face: two adjacent anchors)"
+                disabled={component === 'edge' ? selection.length < 1 : selection.length < 2}
+                onClick={() => selectLoop()}
+              >
+                loop (L)
+              </button>
+            )}
             <button className="studio-btn" disabled={selection.length === 0} onClick={() => clearSelection()}>clear</button>
           </div>
           <div className="empty-hint inline">
-            {component === 'vertex' && 'Select 2 vertices on a face, then Connect to add an edge.'}
-            {component === 'edge' && 'Select two edge loops, then Bridge to join them.'}
-            {(component === 'face' || component === 'object') && 'Click faces (Shift to add), then drag the gizmo or extrude.'}
+            {component === 'vertex' && 'Connect: 2 verts on a face → edge. Loop: select 2 verts, then Loop (L) — selects the loop, or the path between them.'}
+            {component === 'edge' && 'Bridge two edge loops to join them. Double-click an edge (or Loop/L) selects its loop.'}
+            {component === 'object' && 'Click an object to focus it (others dim + lock in edit modes). Shift-click several, then Group to focus/move them as one.'}
+            {component === 'face' && 'Click faces (Shift to add), then extrude. Loop: select 2 faces, then Loop (L) — selects the loop, or the path between them.'}
           </div>
         </div>
 

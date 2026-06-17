@@ -180,6 +180,34 @@ export function buildEdgeHighlight(
   return hi;
 }
 
+/**
+ * Per-vertex RGBA colors that dim every triangle whose polygon isn't in `activePolys` — the
+ * visual for "other objects dimmed while one is focused". `activePolys` holds dense polygon
+ * indices; null means nothing is focused, so everything stays bright. Vertex colors multiply
+ * the material diffuse, so dim verts render darker. (Islands don't share vertices, so a
+ * vertex is unambiguously active or not.)
+ */
+export function buildIslandColors(geo: CustomGeometry, triToFace: number[], activePolys: Set<number> | null): Float32Array {
+  const colors = new Float32Array((geo.positions.length / 3) * 4).fill(1);
+  if (!activePolys) return colors; // all bright
+  const DIM = 0.5; // subtle: noticeably darker but still readable for context
+  for (let i = 0; i < colors.length; i += 4) {
+    colors[i] = DIM;
+    colors[i + 1] = DIM;
+    colors[i + 2] = DIM;
+  }
+  for (let t = 0; t < triToFace.length; t++) {
+    if (!activePolys.has(triToFace[t])) continue;
+    for (let k = 0; k < 3; k++) {
+      const vi = geo.indices[t * 3 + k] * 4;
+      colors[vi] = 1;
+      colors[vi + 1] = 1;
+      colors[vi + 2] = 1;
+    }
+  }
+  return colors;
+}
+
 /** Build the modeler's ground reference grid (a faint line system on the y=0 plane). */
 export function buildGroundGrid(scene: Scene): LinesMesh {
   const HALF = 10;

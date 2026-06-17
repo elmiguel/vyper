@@ -42,6 +42,31 @@ zooms. Plain clicks stay free for selecting. In Edit Mode you can:
 | Custom mesh build/extract | [src/babylon/customMesh.ts](../src/babylon/customMesh.ts) — `buildCustomMesh`, `toCustomGeometry` |
 | UI | [src/panels/ModelingTools.tsx](../src/panels/ModelingTools.tsx) (reuses [ModelingPanel.tsx](../src/panels/ModelingPanel.tsx) for CSG) |
 
+## Focused object (one mesh, many islands)
+
+A studio mesh can hold several objects (connected islands — primitives are added "beside"
+each other). To keep edits from jumping between them, there's an **active (focused) object**:
+
+- **Object mode** sets it — clicking an object (island) focuses it (and selects it).
+- In **Vertex/Edge/Face** modes, picking + editing **lock to the focused object**; clicks on
+  other objects are ignored so the working object doesn't change. The first component pick
+  (when nothing is focused yet) focuses the island it touches.
+- Non-focused objects render **dimmed** (a subtle vertex-color multiply — `mesh.hasVertexAlpha`
+  is forced off so the colors only darken, never make the mesh transparent) and aren't pickable
+  while a component mode is active; Object mode shows everything bright so you can pick any to focus.
+- To work on a different object, switch to Object mode and click it.
+
+**Grouping.** Several objects can be grouped to focus/select/transform as one unit: in Object
+mode shift-click them and press **Group** (`⌘/Ctrl+G`); **Ungroup** (`⇧⌘/Ctrl+G`) splits a
+group back into separate objects. Clicking any member of a group focuses the whole group.
+
+Identity is tracked by each island's **centroid** ([modelerFocus.ts](../src/modeler/modelerFocus.ts),
+`ActiveObject`; groups in [modelerGroups.ts](../src/modeler/modelerGroups.ts), `ObjectGroups`):
+the kernel reassigns ids on every edit, so after each rebuild the focused island(s) and group
+members are re-found as the nearest centroids. The lock + dim live in
+[modelerPicking.ts](../src/modeler/modelerPicking.ts) (`createPickActions`) and the viewport's
+dim/hover gating ([buildIslandColors](../src/modeler/modelerSceneGeom.ts)).
+
 ## Component modes (object / vertex / edge / face)
 
 The kernel-backed edit viewport ([ModelerScene.ts](../src/modeler/ModelerScene.ts) +
@@ -61,16 +86,30 @@ ready immediately — pick the **Move/Rotate/Scale** tool (or its keymap shortcu
 **Shift+click** adds, **Ctrl/⌘+click** removes, a plain click replaces, in any component
 mode; clicking empty space clears.
 
-**Edge mode** adds loop selection and hover feedback (driven from `ModelerScene`'s pointer
-observable through `applyPick`'s `loop` flag):
+**Hover feedback + loop selection** work in all three component modes (driven from
+`ModelerScene`'s pointer observable; the loop seed is the edge nearest the cursor, passed to
+`applyPick` as `loopEdge`):
 
-- **Hover** an edge → it highlights in a distinct magenta (`#ff2e97`, separate from the
-  yellow selection), so you can see what a click will grab.
-- **Double-click** an edge → selects its whole **edge loop** (continues straight through
-  valence-4 vertices via [`edgeLoop`](../src/kernel/selectionOps.ts); stops at irregular
-  vertices, so e.g. cube corners don't extend).
-- The modifiers compose with the loop: **Shift+double-click** adds the loop, **Ctrl/⌘+double-click**
-  removes the loop, a plain double-click replaces with it.
+- **Hover** highlights the component under the cursor in a distinct magenta (`#ff2e97`,
+  separate from the yellow selection) so you can see what a click will grab — the vertex,
+  edge, or face per the active mode. Rendered by [modelerHover.ts](../src/modeler/modelerHover.ts).
+- **Loop selection** picks a whole loop in the active mode:
+  - **Edge** → **double-click** an edge selects its **edge loop**
+    ([`edgeLoop`](../src/kernel/selectionOps.ts) — one edge fixes the loop unambiguously;
+    continues through valence-4 vertices, stops at irregular ones, so e.g. cube corners don't
+    extend). Shift/Ctrl+double-click add/remove the loop. Detection is manual (two quick
+    presses at the same spot), not Babylon's heuristic `POINTERDOUBLETAP`.
+  - **Vertex / Face** → a single point or face has no inherent loop direction, so select
+    **two anchors on the same loop** (click one, Shift+click another) then **Select Loop** —
+    the **loop (L)** button in the panel's Edit section, the `L` key, or the right-click
+    *Select* submenu. It finds the **vertex loop**
+    ([`loopThroughVertices`](../src/kernel/selectionOps.ts)) or **face loop**
+    ([`loopThroughFaces`](../src/kernel/selectionOps.ts)) running through both anchors;
+    `selectLoop` tries every selected pair, so click order / extra selected components don't
+    matter. If the two anchors don't share a clean loop it **falls back to the shortest path
+    between them** ([`pathBetweenVertices`](../src/kernel/selectionOps.ts) /
+    [`pathBetweenFaces`](../src/kernel/selectionOps.ts)), so any two connected picks always
+    produce a result. (It also handles the edge case — loop from one selected edge.)
 
 Internally the selection is component-aware: `modelerStore.selection` holds kernel face
 ids, vertex ids, or edge ids depending on the mode (object mode uses the `objectSelected`

@@ -74,8 +74,12 @@ export function buildModelerMenu(s: Store, km: Keymap): MenuItem[] {
       { label: 'Grow', shortcut: '>', disabled: !selection.length, onClick: () => s.grow() },
       { label: 'Shrink', shortcut: '<', disabled: !selection.length, onClick: () => s.shrink() },
     ];
+    // Loop selection: edges need one selected edge; verts/faces need two anchors to pick the
+    // loop direction (select two adjacent components, then Select Loop).
+    const needAnchors = component === 'edge' ? selection.length < 1 : selection.length < 2;
+    const loopLabel = component === 'edge' ? 'Edge Loop' : component === 'vertex' ? 'Vertex Loop' : 'Face Loop';
+    selSub.push({ label: loopLabel, shortcut: 'L', disabled: needAnchors, onClick: () => s.selectLoop() });
     if (component === 'edge') {
-      selSub.push({ label: 'Edge Loop', disabled: !selection.length, onClick: () => s.selectEdgeLoop() });
       selSub.push({ label: 'Edge Ring', disabled: !selection.length, onClick: () => s.selectEdgeRing() });
     }
     selSub.push({ label: 'Convert → Vertices', disabled: !selection.length, onClick: () => s.convertTo('vertex') });

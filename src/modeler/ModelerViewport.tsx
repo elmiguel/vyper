@@ -32,6 +32,7 @@ export function ModelerViewport() {
 
   const revision = useModelerStore((s) => s.revision);
   const selRevision = useModelerStore((s) => s.selRevision);
+  const activeRevision = useModelerStore((s) => s.activeRevision);
   const frameRequest = useModelerStore((s) => s.frameRequest);
   const tool = useModelerStore((s) => s.tool);
   const component = useModelerStore((s) => s.component);
@@ -105,6 +106,15 @@ export function ModelerViewport() {
     scene.setGizmo(st.selectionCentroid());
   }, [component]);
 
+  // Focus lock: dim + lock the non-active objects in component modes. Object mode shows all
+  // (no dim) so any object can be picked to become the active one. Runs after the geometry /
+  // component effects above so it colors the current mesh.
+  useEffect(() => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    scene.setActivePolygons(component === 'object' ? null : useModelerStore.getState().activePolygonIndices());
+  }, [component, revision, activeRevision]);
+
   // Frame requests from the toolbar.
   useEffect(() => {
     if (frameRequest > 0) sceneRef.current?.frame();
@@ -154,9 +164,12 @@ export function ModelerViewport() {
       }
       // Modeling shortcuts: Ctrl/⌘+E extrude · > grow · < shrink (Maya defaults).
       const st0 = useModelerStore.getState();
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') { e.shiftKey ? st0.ungroup() : st0.group(); e.preventDefault(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') { st0.extrude(0.5); e.preventDefault(); return; }
       if (e.key === '>' && !e.ctrlKey && !e.metaKey) { st0.grow(); e.preventDefault(); return; }
       if (e.key === '<' && !e.ctrlKey && !e.metaKey) { st0.shrink(); e.preventDefault(); return; }
+      // Select Loop: edge loop from a selected edge, or the vertex/face loop through two anchors.
+      if (e.key.toLowerCase() === 'l' && !e.ctrlKey && !e.metaKey) { st0.selectLoop(); e.preventDefault(); return; }
       const action = lookup.get(comboFromEvent(e));
       if (!action) return;
       const st = useModelerStore.getState();

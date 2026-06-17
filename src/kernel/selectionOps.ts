@@ -141,6 +141,150 @@ export function edgeRing(mesh: HalfEdgeMesh, seedEdge: number): number[] {
   return [...ring];
 }
 
+/** Face loop: the strip of quads the edge ring through `seedEdge` passes through (the faces
+ *  crossed stepping to the opposite edge each step, both directions). */
+export function faceLoop(mesh: HalfEdgeMesh, seedEdge: number): number[] {
+  const index = edgeIndex(mesh);
+  const faces = new Set<number>();
+  for (const startFace of mesh.edgeFaces(seedEdge)) {
+    let cur = seedEdge;
+    let face: number | undefined = startFace;
+    while (face !== undefined && !faces.has(face)) {
+      faces.add(face);
+      const loop = mesh.faceVertices(face);
+      if (loop.length !== 4) break;
+      const opp = oppositeEdge(mesh, index, loop, cur);
+      if (opp === undefined) break;
+      cur = opp;
+      face = mesh.edgeFaces(opp).find((f) => f !== face);
+    }
+  }
+  return [...faces];
+}
+
+/** Vertex loop: the vertices strung along the edge loop through `seedEdge`. */
+export function vertexLoop(mesh: HalfEdgeMesh, seedEdge: number): number[] {
+  const verts = new Set<number>();
+  for (const e of edgeLoop(mesh, seedEdge)) {
+    const [a, b] = mesh.edgeVertices(e);
+    verts.add(a);
+    verts.add(b);
+  }
+  return [...verts];
+}
+
+/**
+ * The vertex loop passing through both anchor vertices `a` and `b`, or null if they don't
+ * share one. Trying each edge incident to `a` disambiguates direction — which is why two
+ * anchors are needed (a lone vertex has no inherent loop direction).
+ */
+export function loopThroughVertices(mesh: HalfEdgeMesh, a: number, b: number): number[] | null {
+  if (a === b) return null;
+  for (const e of (vertexEdges(mesh).get(a) ?? [])) {
+    const loop = vertexLoop(mesh, e);
+    if (loop.includes(b)) return loop;
+  }
+  return null;
+}
+
+/**
+ * The face loop passing through both anchor faces `f1` and `f2`, or null if they don't share
+ * one. Trying each edge of `f1` disambiguates the ring direction (a lone face has two).
+ */
+export function loopThroughFaces(mesh: HalfEdgeMesh, f1: number, f2: number): number[] | null {
+  if (f1 === f2) return null;
+  for (const he of mesh.faceHalfEdges(f1)) {
+    const loop = faceLoop(mesh, mesh.halfEdges[he].edge);
+    if (loop.includes(f2)) return loop;
+  }
+  return null;
+}
+
+/**
+ * The loop (or fallback path) through a set of `anchors` in component `comp` — the shared
+ * engine behind both the Select Loop action and double-click loop selection.
+ *   edge:   the edge loop through the first anchor.
+ *   vertex/face: the loop running through any anchor pair (so order/extra anchors don't
+ *     matter); if none share a clean loop, the shortest path between the first two anchors so
+ *     two picks always yield a result.
+ * Returns [] when there's nothing to select (e.g. fewer than two vertex/face anchors).
+ */
+export function loopOrPath(mesh: HalfEdgeMesh, comp: Comp, anchors: number[]): number[] {
+  if (comp === 'edge') return anchors[0] === undefined ? [] : edgeLoop(mesh, anchors[0]);
+  if (anchors.length < 2) return [];
+  const through = comp === 'vertex' ? loopThroughVertices : loopThroughFaces;
+  for (let i = 0; i < anchors.length; i++) {
+    for (let j = i + 1; j < anchors.length; j++) {
+      const loop = through(mesh, anchors[i], anchors[j]);
+      if (loop && loop.length > 2) return loop;
+    }
+  }
+  return comp === 'vertex'
+    ? pathBetweenVertices(mesh, anchors[0], anchors[1])
+    : pathBetweenFaces(mesh, anchors[0], anchors[1]);
+}
+
+/** Shortest vertex path between `a` and `b` along edges (BFS), inclusive; [] if unreachable.
+ *  The robust fallback when two anchors aren't on a clean edge loop. */
+export function pathBetweenVertices(mesh: HalfEdgeMesh, a: number, b: number): number[] {
+  if (a === b) return [a];
+  const ve = vertexEdges(mesh);
+  const prev = new Map<number, number>();
+  const seen = new Set<number>([a]);
+  const queue = [a];
+  while (queue.length) {
+    const v = queue.shift()!;
+    if (v === b) break;
+    for (const e of ve.get(v) ?? []) {
+      const [x, y] = mesh.edgeVertices(e);
+      const n = x === v ? y : x;
+      if (!seen.has(n)) {
+        seen.add(n);
+        prev.set(n, v);
+        queue.push(n);
+      }
+    }
+  }
+  if (!seen.has(b)) return [];
+  const path = [b];
+  let cur = b;
+  while (cur !== a) {
+    cur = prev.get(cur)!;
+    path.push(cur);
+  }
+  return path.reverse();
+}
+
+/** Shortest face path between `f1` and `f2` across shared edges (BFS), inclusive; [] if
+ *  unreachable. The robust fallback when two face anchors aren't on a clean ring. */
+export function pathBetweenFaces(mesh: HalfEdgeMesh, f1: number, f2: number): number[] {
+  if (f1 === f2) return [f1];
+  const prev = new Map<number, number>();
+  const seen = new Set<number>([f1]);
+  const queue = [f1];
+  while (queue.length) {
+    const f = queue.shift()!;
+    if (f === f2) break;
+    for (const he of mesh.faceHalfEdges(f)) {
+      const twin = mesh.halfEdges[he].twin;
+      if (twin === -1) continue;
+      const nf = mesh.halfEdges[twin].face;
+      if (nf === -1 || seen.has(nf)) continue;
+      seen.add(nf);
+      prev.set(nf, f);
+      queue.push(nf);
+    }
+  }
+  if (!seen.has(f2)) return [];
+  const path = [f2];
+  let cur = f2;
+  while (cur !== f1) {
+    cur = prev.get(cur)!;
+    path.push(cur);
+  }
+  return path.reverse();
+}
+
 /** Edge loop: extend through valence-4 vertices, picking the non-adjacent continuation. */
 export function edgeLoop(mesh: HalfEdgeMesh, seedEdge: number): number[] {
   const index = edgeIndex(mesh);
