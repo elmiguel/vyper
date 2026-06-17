@@ -81,6 +81,8 @@ export class ModelerScene {
   private edgeHi?: LinesMesh;
   /** Edge under the cursor in edge mode (hover feedback), distinct from the selection. */
   private hoverEdge?: LinesMesh;
+  /** Last left-button press (event time + screen pos), for manual double-click detection. */
+  private lastDown = { t: -Infinity, x: 0, y: 0 };
   /** The geometry currently displayed (kept so the wireframe can rebuild on toggle). */
   private currentGeo?: CustomGeometry;
   private readonly mat: StandardMaterial;
@@ -214,14 +216,18 @@ export class ModelerScene {
         this.updateHoverEdge(e);
         return;
       }
+      if (info.type !== 1 /* POINTERDOWN */) return;
       if (this.activeGizmoHovered()) return; // interacting with a gizmo handle isn't a pick
       if (e.button !== 0 || e.altKey) return; // left button only; alt is reserved for nav
       // Shift adds to the selection; Ctrl/Cmd removes from it; a plain click replaces. A
-      // double-click expands to the whole edge loop of the clicked edge (edge mode).
-      const additive = e.shiftKey;
-      const subtract = e.ctrlKey || e.metaKey;
-      if (info.type === 64 /* POINTERDOUBLETAP */) this.onPick?.(this.pickComponent(), additive, subtract, true);
-      else if (info.type === 1 /* POINTERDOWN */) this.onPick?.(this.pickComponent(), additive, subtract, false);
+      // double-click expands to the whole edge loop of the clicked edge (edge mode). Detect
+      // the double-click ourselves (two quick downs at the same spot) rather than via
+      // Babylon's POINTERDOUBLETAP, which is heuristic and misses often.
+      const x = this.scene.pointerX;
+      const y = this.scene.pointerY;
+      const isDouble = e.timeStamp - this.lastDown.t < 400 && Math.hypot(x - this.lastDown.x, y - this.lastDown.y) < 6;
+      this.lastDown = { t: e.timeStamp, x, y };
+      this.onPick?.(this.pickComponent(), e.shiftKey, e.ctrlKey || e.metaKey, isDouble);
     });
     // The knife finishes on right-click; suppress the browser context menu over the canvas.
     canvas.addEventListener('contextmenu', (ev) => {
@@ -254,7 +260,7 @@ export class ModelerScene {
     const edge = this.pickEdge();
     this.clearHoverEdge();
     if (edge && this.currentGeo) {
-      this.hoverEdge = buildEdgeHighlight(this.scene, this.currentGeo, [edge], new Color3(0.6, 0.95, 1));
+      this.hoverEdge = buildEdgeHighlight(this.scene, this.currentGeo, [edge], Color3.FromHexString('#ff2e97'));
     }
   }
 

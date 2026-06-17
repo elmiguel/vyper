@@ -179,8 +179,11 @@ export function ModelerViewport() {
   }, [keymap]);
 
   // Right-click opens the themed, mode-aware context menu (unless a tool owns right-click).
+  // Only a true secondary-button click (button 2) qualifies — macOS fires `contextmenu` with
+  // button 0 for Ctrl+left-click, which is reserved for deselect, so we ignore that here.
   const onContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    if (e.button !== 2) return; // Ctrl+left-click (deselect), not a menu request
     const st = useModelerStore.getState();
     if (st.editTool !== 'none') return;
     setMenu({ x: e.clientX, y: e.clientY, items: buildModelerMenu(st, KEYMAPS[st.keymap]) });

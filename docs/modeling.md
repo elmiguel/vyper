@@ -64,8 +64,8 @@ mode; clicking empty space clears.
 **Edge mode** adds loop selection and hover feedback (driven from `ModelerScene`'s pointer
 observable through `applyPick`'s `loop` flag):
 
-- **Hover** an edge → it highlights in a distinct cyan (separate from the yellow selection),
-  so you can see what a click will grab.
+- **Hover** an edge → it highlights in a distinct magenta (`#ff2e97`, separate from the
+  yellow selection), so you can see what a click will grab.
 - **Double-click** an edge → selects its whole **edge loop** (continues straight through
   valence-4 vertices via [`edgeLoop`](../src/kernel/selectionOps.ts); stops at irregular
   vertices, so e.g. cube corners don't extend).
