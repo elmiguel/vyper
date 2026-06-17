@@ -1,47 +1,48 @@
 import { useEffect, useState } from 'react';
 import {
-  Play, Pause, Square, Plus, Bug, Boxes, Lightbulb,
-  MousePointer2, Move3d, Rotate3d, Scale3d, Undo2, Redo2, Keyboard, ChevronDown, Compass, BookOpen,
-  Home, Save, Layers, Loader2, X, History, Pencil, Gamepad2, Target, LayoutDashboard, Sparkles, Scan,
+  Play, Pause, Square, Plus, Bug, Undo2, Redo2, Keyboard, ChevronDown, Compass, BookOpen,
+  Home, Save, Layers, Loader2, X, History, Pencil, Target, LayoutDashboard, Box, Columns3,
+  Image as ImageIcon, Check,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useProjectStore } from '@/store/projectStore';
-import type { GizmoMode, LightKind, PrimitiveKind } from '@/types';
-import { primsFor } from '@/types';
-import { EFFECT_PRESETS, presetsForMode } from '@/effects/presets';
 import { KEYMAPS, describeBinding, type EditorAction, type KeymapId } from '@/input/keymaps';
-
-const LIGHTS: LightKind[] = ['hemispheric', 'point', 'directional'];
-/** Shapes offered for trigger volumes, per game mode. */
-const VOLUME_SHAPES: Record<'2d' | '3d', PrimitiveKind[]> = {
-  '3d': ['box', 'sphere', 'cylinder'],
-  '2d': ['square', 'circle'],
-};
-
-const TOOLS: { mode: GizmoMode; icon: typeof Move3d; action: EditorAction; label: string }[] = [
-  { mode: 'select', icon: MousePointer2, action: 'tool.select', label: 'Select' },
-  { mode: 'move', icon: Move3d, action: 'tool.move', label: 'Move' },
-  { mode: 'rotate', icon: Rotate3d, action: 'tool.rotate', label: 'Rotate' },
-  { mode: 'scale', icon: Scale3d, action: 'tool.scale', label: 'Scale' },
-];
+import { BUILTIN_PRESETS } from '@/layout/workspacePresets';
+import { activatePreset, resetWorkspace, saveCurrentLayout } from '@/layout/dockController';
 
 export function Toolbar() {
   const {
-    playState, play, pause, stop, addPrimitive, addPlayer, addLight, toggleInspector3D, showInspector3D,
-    gizmoMode, setGizmoMode, keymap, setKeymap, undo, redo, past, future, setShowShortcuts, setRunTour, mode, setShowDesign, setShowHud,
-    addEffect, addVolume, selectedId,
+    playState, play, pause, stop, toggleInspector3D, showInspector3D,
+    keymap, setKeymap, undo, redo, past, future, setShowShortcuts, setRunTour, setShowDesign, setShowHud,
+    setShowAssetBrowser, workspace, deleteCustomLayout,
   } = useEditorStore();
-  const PRIMS = primsFor(mode);
-  const is2D = mode === '2d';
-  const [menu, setMenu] = useState<null | 'mesh' | 'light' | 'keymap' | 'scene' | 'fx' | 'volume'>(null);
+  const [menu, setMenu] = useState<null | 'keymap' | 'scene' | 'layout'>(null);
+  const activeLayout =
+    BUILTIN_PRESETS[workspace.activePresetId]?.label ??
+    workspace.custom.find((c) => c.id === workspace.activePresetId)?.label ??
+    'Layout';
+
+  const saveLayout = () => {
+    const label = window.prompt('Save layout as:')?.trim();
+    if (label) saveCurrentLayout(label);
+    setMenu(null);
+  };
   const km = KEYMAPS[keymap];
   const tip = (a: EditorAction) => `${describeBinding(km, a)}`;
 
-  const { gameName, scenes, sceneId, saving, dirty, save, switchScene, addScene, deleteScene, renameScene, goHome, setShowHistory } =
+  const { gameName, scenes, sceneId, saving, dirty, save, switchScene, addScene, deleteScene, renameScene, goHome, setShowHistory, captureCover } =
     useProjectStore();
   const activeScene = scenes.find((s) => s.id === sceneId);
   const [editScene, setEditScene] = useState<string | null>(null);
   const [sceneDraft, setSceneDraft] = useState('');
+  const [coverSaved, setCoverSaved] = useState(false);
+
+  const setThumbnail = async () => {
+    if (await captureCover()) {
+      setCoverSaved(true);
+      setTimeout(() => setCoverSaved(false), 1500);
+    }
+  };
 
   const startRename = (id: string, name: string) => {
     setEditScene(id);
@@ -141,104 +142,22 @@ export function Toolbar() {
         <button className="tb-icon" onClick={() => setShowHistory(true)} title="Version history / revert">
           <History size={15} />
         </button>
+        <button
+          className={`tb-icon ${coverSaved ? 'ok' : ''}`}
+          onClick={() => void setThumbnail()}
+          title="Set project thumbnail from the current view"
+        >
+          {coverSaved ? <Check size={15} /> : <ImageIcon size={15} />}
+        </button>
         <button className="tb-btn" data-tour="design" onClick={() => setShowDesign(true)} title="Game design: goals, objectives, rules">
           <Target size={14} /> Design
         </button>
         <button className="tb-btn" data-tour="hud" onClick={() => setShowHud(true)} title="HUD editor: on-screen overlay (2D & 3D)">
           <LayoutDashboard size={14} /> HUD
         </button>
-      </div>
-
-      <span className="tb-divider" />
-
-      <div className="tb-group" data-tour="add">
-        <div className="tb-menu-wrap">
-          <button className="tb-btn" onClick={() => setMenu(menu === 'mesh' ? null : 'mesh')}>
-            <Boxes size={15} /> {is2D ? 'Shape' : 'Mesh'} <Plus size={12} />
-          </button>
-          {menu === 'mesh' && (
-            <div className="tb-menu">
-              {PRIMS.map((p) => (
-                <button key={p} onClick={() => { addPrimitive(p); setMenu(null); }}>{p}</button>
-              ))}
-            </div>
-          )}
-        </div>
-        <button
-          className="tb-btn"
-          data-tour="player"
-          onClick={() => { addPlayer(); setMenu(null); }}
-          title="Add a player with default movement controls (WASD / arrows · mouse-look in 3D)"
-        >
-          <Gamepad2 size={15} /> Player <Plus size={12} />
+        <button className="tb-btn" data-tour="assets" onClick={() => setShowAssetBrowser(true)} title="Asset library: 3D models & textures">
+          <Box size={14} /> Assets
         </button>
-        {/* Lights are 3D-only; 2D shapes render flat/unlit. */}
-        {!is2D && (
-          <div className="tb-menu-wrap">
-            <button className="tb-btn" onClick={() => setMenu(menu === 'light' ? null : 'light')}>
-              <Lightbulb size={15} /> Light <Plus size={12} />
-            </button>
-            {menu === 'light' && (
-              <div className="tb-menu">
-                {LIGHTS.map((l) => (
-                  <button key={l} onClick={() => { addLight(l); setMenu(null); }}>{l}</button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        <div className="tb-menu-wrap">
-          <button
-            className="tb-btn"
-            data-tour="fx"
-            disabled={!selectedId}
-            title={selectedId ? 'Add a particle effect to the selected object' : 'Select an object first'}
-            onClick={() => setMenu(menu === 'fx' ? null : 'fx')}
-          >
-            <Sparkles size={15} /> FX <Plus size={12} />
-          </button>
-          {menu === 'fx' && selectedId && (
-            <div className="tb-menu">
-              {presetsForMode(mode).map((id) => (
-                <button key={id} onClick={() => { addEffect(selectedId, id); setMenu(null); }}>
-                  {EFFECT_PRESETS[id].label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="tb-menu-wrap">
-          <button
-            className="tb-btn"
-            title="Add a trigger volume (a zone that fires events when objects enter/exit)"
-            onClick={() => setMenu(menu === 'volume' ? null : 'volume')}
-          >
-            <Scan size={15} /> Volume <Plus size={12} />
-          </button>
-          {menu === 'volume' && (
-            <div className="tb-menu">
-              {VOLUME_SHAPES[is2D ? '2d' : '3d'].map((k) => (
-                <button key={k} onClick={() => { addVolume(k); setMenu(null); }}>{k}</button>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <span className="tb-divider" />
-
-      {/* Transform tools */}
-      <div className="tb-tools" data-tour="tools">
-        {TOOLS.map((t) => (
-          <button
-            key={t.mode}
-            className={`tb-icon ${gizmoMode === t.mode ? 'active' : ''}`}
-            onClick={() => setGizmoMode(t.mode)}
-            title={`${t.label} (${tip(t.action)})`}
-          >
-            <t.icon size={16} />
-          </button>
-        ))}
       </div>
 
       <span className="tb-divider" />
@@ -283,6 +202,44 @@ export function Toolbar() {
                 <span className="km-hint">{describeBinding(KEYMAPS[id], 'tool.move')} / {describeBinding(KEYMAPS[id], 'tool.rotate')} / {describeBinding(KEYMAPS[id], 'tool.scale')}</span>
               </button>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Workspace layout selector */}
+      <div className="tb-menu-wrap" data-tour="layout">
+        <button className="tb-btn" onClick={() => setMenu(menu === 'layout' ? null : 'layout')} title="Workspace layout">
+          <Columns3 size={15} /> {activeLayout} <ChevronDown size={12} />
+        </button>
+        {menu === 'layout' && (
+          <div className="tb-menu layout-menu">
+            {Object.values(BUILTIN_PRESETS).map((p) => (
+              <button
+                key={p.id}
+                className={workspace.activePresetId === p.id ? 'on' : ''}
+                onClick={() => { activatePreset(p.id); setMenu(null); }}
+              >
+                {p.label}
+              </button>
+            ))}
+            {workspace.custom.length > 0 && <div className="layout-sep" />}
+            {workspace.custom.map((c) => (
+              <div key={c.id} className={`layout-row ${workspace.activePresetId === c.id ? 'on' : ''}`}>
+                <button className="layout-pick" onClick={() => { activatePreset(c.id); setMenu(null); }}>
+                  {c.label}
+                </button>
+                <button className="layout-del" title="Delete layout" onClick={(e) => { e.stopPropagation(); deleteCustomLayout(c.id); }}>
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+            <div className="layout-sep" />
+            <button className="layout-action" onClick={saveLayout}>
+              <Save size={12} /> Save current layout…
+            </button>
+            <button className="layout-action" onClick={() => { resetWorkspace(); setMenu(null); }}>
+              Reset to Default
+            </button>
           </div>
         )}
       </div>

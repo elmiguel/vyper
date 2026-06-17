@@ -1,0 +1,88 @@
+{
+  "assets": [
+    {
+      "id": "chicken_001",
+      "name": "chicken_001",
+      "type": "model",
+      "source": "builtin",
+      "format": "obj",
+      "modelFile": "chicken_001.obj",
+      "mtlFile": "chicken_001.mtl",
+      "textures": [
+        "Texture_1.png"
+      ]
+    },
+    {
+      "id": "deer_001",
+      "name": "deer_001",
+      "type": "model",
+      "source": "builtin",
+      "format": "obj",
+      "modelFile": "deer_001.obj",
+      "mtlFile": "deer_001.mtl",
+      "textures": [
+        "Texture_1.png"
+      ]
+    },
+    {
+      "id": "dog_001",
+      "name": "dog_001",
+      "type": "model",
+      "source": "builtin",
+      "format": "obj",
+      "modelFile": "dog_001.obj",
+      "mtlFile": "dog_001.mtl",
+      "textures": [
+        "Texture_1.png"
+      ]
+    },
+    {
+      "id": "horse_001",
+      "name": "horse_001",
+      "type": "model",
+      "source": "builtin",
+      "format": "obj",
+      "modelFile": "horse_001.obj",
+      "mtlFile": "horse_001.mtl",
+      "textures": [
+        "Texture_1.png"
+      ]
+    },
+    {
+      "id": "kitty_001",
+      "name": "kitty_001",
+      "type": "model",
+      "source": "builtin",
+      "format": "obj",
+      "modelFile": "kitty_001.obj",
+      "mtlFile": "kitty_001.mtl",
+      "textures": [
+        "Texture_1.png"
+      ]
+    },
+    {
+      "id": "pinguin_001",
+      "name": "pinguin_001",
+      "type": "model",
+      "source": "builtin",
+      "format": "obj",
+      "modelFile": "pinguin_001.obj",
+      "mtlFile": "pinguin_001.mtl",
+      "textures": [
+        "Texture_1.png"
+      ]
+    },
+    {
+      "id": "tiger_001",
+      "name": "tiger_001",
+      "type": "model",
+      "source": "builtin",
+      "format": "obj",
+      "modelFile": "tiger_001.obj",
+      "mtlFile": "tiger_001.mtl",
+      "textures": [
+        "Texture_1.png"
+      ]
+    }
+  ]
+}

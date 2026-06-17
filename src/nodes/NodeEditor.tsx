@@ -17,6 +17,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import { EngineNode } from './EngineNode';
 import { FlowEdge } from './FlowEdge';
+import { canConnect } from './connectionRules';
 import { ASSET_KINDS, NODE_PALETTE, NODE_SPECS, makeNode, type EngineNodeData } from './nodeTypes';
 import { ContextMenu, type MenuItem } from '@/ui/ContextMenu';
 import {
@@ -37,14 +38,6 @@ const edgeTypes = { flow: FlowEdge };
 
 /** Custom MIME used to carry a node kind from the palette to the canvas on drop. */
 const DND_MIME = 'application/nodeforge-kind';
-
-function portKind(node: Node | undefined, handleId: string, dir: 'in' | 'out'): string | null {
-  if (!node) return null;
-  const spec = NODE_SPECS[(node.data as EngineNodeData).kind];
-  const portId = handleId.slice(3); // strip "in-" / "out-"
-  const port = (dir === 'in' ? spec.inputs : spec.outputs).find((p) => p.id === portId);
-  return port?.kind ?? null;
-}
 
 interface MenuState {
   x: number;
@@ -87,21 +80,18 @@ function Flow({ scriptId }: { scriptId: string }) {
 
   const isValidConnection = useCallback(
     (conn: Connection | Edge) => {
-      const s = conn.sourceHandle ?? '';
-      const t = conn.targetHandle ?? '';
-      if (!s || !t || conn.source === conn.target) return false;
-      const sExec = s.startsWith('exec-');
-      const tExec = t === 'exec-in';
-      if (sExec || tExec) return sExec && tExec;
-      const srcKind = portKind(nodes.find((n) => n.id === conn.source), s, 'out');
-      const tgtKind = portKind(nodes.find((n) => n.id === conn.target), t, 'in');
-      return !!srcKind && srcKind === tgtKind;
+      const ok = canConnect(conn, nodes);
+      // TEMP DIAGNOSTIC — remove once the connection issue is resolved.
+      console.warn('[connect] validate', conn.sourceHandle, '→', conn.targetHandle, '=>', ok);
+      return ok;
     },
     [nodes],
   );
 
   const onConnect = useCallback(
     (conn: Connection) => {
+      // TEMP DIAGNOSTIC — remove once the connection issue is resolved.
+      console.warn('[connect] onConnect FIRED', conn.sourceHandle, '→', conn.targetHandle);
       setEdges((eds) => {
         // One connection per target handle (a port takes a single input), but an
         // exec *source* may fan out to many targets — they all run in sequence.

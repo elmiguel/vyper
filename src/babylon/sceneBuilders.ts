@@ -12,6 +12,9 @@ import type { Light } from '@babylonjs/core/Lights/light';
 import '@babylonjs/core/Meshes/Builders/linesBuilder';
 import '@babylonjs/core/Meshes/Builders/discBuilder';
 import type { Entity, GameMode } from '@/types';
+import { defaultTerrain } from '@/types';
+import { buildTerrainMesh } from './terrainMesh';
+import { buildCustomMesh } from './customMesh';
 import { GAME_CAMERA_ID, EDITOR_LAYER, DEFAULT_LAYER } from './editorObjects';
 
 export const DEG = Math.PI / 180;
@@ -21,6 +24,12 @@ export const DOUBLE_SIDED = 2; // Mesh.DOUBLESIDE — flat 2D shapes are visible
 export function buildMesh(scene: Scene, e: Entity): AbstractMesh {
   const kind = e.mesh!.kind;
   switch (kind) {
+    case 'terrain':
+      return buildTerrainMesh(scene, e.id, e.mesh!.terrain ?? defaultTerrain());
+    case 'custom':
+      return e.mesh!.custom
+        ? buildCustomMesh(scene, e.id, e.mesh!.custom)
+        : MeshBuilder.CreateBox(e.id, { size: 1 }, scene);
     case 'sphere':
       return MeshBuilder.CreateSphere(e.id, { diameter: 1, segments: 24 }, scene);
     case 'ground':
@@ -44,21 +53,25 @@ export function buildMesh(scene: Scene, e: Entity): AbstractMesh {
   }
 }
 
+/** Editor grid: a line system of evenly spaced lines forming square (quad) cells —
+ *  not a wireframe ground (which triangulates each cell with a diagonal). Built in
+ *  the XZ plane for 3D and the XY plane for 2D. One mesh, so setEnabled toggles it. */
 export function createGrid(scene: Scene, mode: GameMode): AbstractMesh {
-  const grid = MeshBuilder.CreateGround('__grid', { width: 40, height: 40, subdivisions: 40 }, scene);
-  const mat = new StandardMaterial('__gridMat', scene);
-  mat.wireframe = true;
-  mat.emissiveColor = new Color3(0.18, 0.12, 0.34);
-  mat.disableLighting = true;
-  grid.material = mat;
-  grid.isPickable = false;
-  if (mode === '2d') {
-    // Stand the grid up into the XY plane (it's built flat in XZ) so it faces the 2D camera.
-    grid.rotation.x = -Math.PI / 2;
-    grid.position.z = 0.001;
-  } else {
-    grid.position.y = -0.001;
+  const HALF = 20; // grid extends ±20 units
+  const STEP = 1; // 1-unit cells
+  // Map a 2D coordinate onto the grid plane for the current mode.
+  const pt = (a: number, b: number) => (mode === '2d' ? new Vector3(a, b, 0) : new Vector3(a, 0, b));
+  const lines: Vector3[][] = [];
+  for (let i = -HALF; i <= HALF; i += STEP) {
+    lines.push([pt(i, -HALF), pt(i, HALF)]); // lines along the second axis
+    lines.push([pt(-HALF, i), pt(HALF, i)]); // lines along the first axis
   }
+  const grid = MeshBuilder.CreateLineSystem('__grid', { lines }, scene) as LinesMesh;
+  grid.color = new Color3(0.18, 0.12, 0.34);
+  grid.isPickable = false;
+  // Nudge off the object plane so coincident geometry doesn't z-fight the grid.
+  if (mode === '2d') grid.position.z = 0.001;
+  else grid.position.y = -0.001;
   grid.layerMask = EDITOR_LAYER; // editor-only — never rendered by the game camera
   return grid;
 }
@@ -138,6 +151,25 @@ export function buildLight(scene: Scene, e: Entity): Light {
   return new DirectionalLight(e.id, new Vector3(-0.5, -1, -0.3), scene);
 }
 
+/** Reconcile an entity's light into a tracked slot: (re)build on kind change,
+ *  then apply colour/intensity/transform; dispose when the entity loses its light. */
+export function reconcileEntityLight(scene: Scene, slot: { light?: Light; lightKind?: string }, e: Entity) {
+  if (e.light) {
+    if (!slot.light || slot.lightKind !== e.light.kind) {
+      slot.light?.dispose();
+      slot.light = buildLight(scene, e);
+      slot.lightKind = e.light.kind;
+    }
+    slot.light.diffuse = Color3.FromHexString(e.light.color);
+    slot.light.intensity = e.light.intensity;
+    applyLightTransform(slot.light, e);
+  } else if (slot.light) {
+    slot.light.dispose();
+    slot.light = undefined;
+    slot.lightKind = undefined;
+  }
+}
+
 export function applyLightTransform(light: Light, e: Entity) {
   const p = e.transform.position;
   if (light instanceof PointLight) light.position.set(p.x, p.y, p.z);
@@ -148,6 +180,41 @@ export function applyLightTransform(light: Light, e: Entity) {
       -Math.sin(r.x * DEG) - 0.4,
       Math.cos(r.y * DEG),
     ).normalize();
+  }
+}
+
+/**
+ * Configure a primitive mesh's StandardMaterial from its entity: a green
+ * wireframe sensor for trigger volumes (editor-only layer), otherwise the
+ * entity's colour — flat/unlit in 2D, lit in 3D. Resets any state a prior
+ * trigger toggle set.
+ */
+export function applyEntityMeshMaterial(mesh: AbstractMesh, e: Entity, mode: GameMode) {
+  const mat = mesh.material as StandardMaterial;
+  const color = Color3.FromHexString(e.mesh!.color);
+  if (e.trigger?.enabled) {
+    mat.wireframe = true;
+    mat.disableLighting = true;
+    mat.emissiveColor = new Color3(0.22, 0.95, 0.55);
+    mat.diffuseColor = new Color3(0, 0, 0);
+    mat.specularColor = new Color3(0, 0, 0);
+    mat.alpha = 0.6;
+    mesh.layerMask = EDITOR_LAYER;
+  } else {
+    mat.wireframe = false;
+    mat.alpha = 1;
+    mesh.layerMask = DEFAULT_LAYER;
+    if (mode === '2d') {
+      // Flat, unlit fill — the classic 2D sprite look (no light required).
+      mat.diffuseColor = new Color3(0, 0, 0);
+      mat.specularColor = new Color3(0, 0, 0);
+      mat.emissiveColor = color;
+      mat.disableLighting = true;
+    } else {
+      mat.diffuseColor = color;
+      mat.emissiveColor = new Color3(0, 0, 0);
+      mat.disableLighting = false;
+    }
   }
 }
 

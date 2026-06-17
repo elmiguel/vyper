@@ -4,7 +4,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { GAME_CAMERA_ID } from '@/babylon/editorObjects';
 import { ContextMenu, type MenuItem } from '@/ui/ContextMenu';
 import type { Entity, LightKind } from '@/types';
-import { primsFor } from '@/types';
+import { primsFor, volumesFor } from '@/types';
 
 const LIGHTS: LightKind[] = ['hemispheric', 'point', 'directional'];
 
@@ -37,6 +37,7 @@ export function Hierarchy() {
       { label: is2D ? 'Add Shape' : 'Add Mesh', submenu: primsFor(s.mode).map((p) => ({ label: p, onClick: () => s.addPrimitive(p) })) },
     ];
     if (!is2D) items.push({ label: 'Add Light', submenu: LIGHTS.map((l) => ({ label: l, onClick: () => s.addLight(l) })) });
+    items.push({ label: 'Add Volume', submenu: volumesFor(s.mode).map((k) => ({ label: k, onClick: () => s.addVolume(k) })) });
     items.push({ label: 'Show Grid', separator: true, checked: s.gridVisible, onClick: () => s.toggleGrid() });
     return items;
   };

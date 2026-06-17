@@ -3,7 +3,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import type { IPhysicsCollisionEvent } from '@babylonjs/core/Physics/v2/IPhysicsEnginePlugin';
 import type { SceneManager } from '@/babylon/SceneManager';
-import type { Entity, Objective, Script } from '@/types';
+import { type Entity, type Objective, type Script, isMeshCollidable } from '@/types';
 import { gameConsole } from '@/store/consoleStore';
 import { generateCode } from '@/nodes/codegen';
 import { flowTracker } from '@/runtime/flowTracker';
@@ -12,6 +12,7 @@ import { InputState } from './InputState';
 import { makeCameraApi } from './cameraApi';
 import { makeEntityApi } from './entityApi';
 import { ObjectiveTracker, type ObjectiveState } from './ObjectiveTracker';
+import { VolumeEnforcer } from './VolumeEnforcer';
 
 export type { ObjectiveState } from './ObjectiveTracker';
 
@@ -42,6 +43,8 @@ export class ScriptRuntime {
   private paused = false;
   private liveApis = new Map<string, ReturnType<typeof makeEntityApi>>();
   private objectives = new ObjectiveTracker([]);
+  /** Per-frame volume boundary + preset enforcement (dead zone / fog / water / sound). */
+  private volumeEnforcer: VolumeEnforcer | null = null;
 
   constructor(private sceneManager: SceneManager) {
     this.input = new InputState(sceneManager);
@@ -215,8 +218,12 @@ export class ScriptRuntime {
     // hooks of its own script instances when other meshes enter/stay/exit it.
     const nameById = new Map(entities.map((e) => [e.id, e.name] as const));
     const tagById = new Map(entities.map((e) => [e.id, e.tag] as const));
-    // Candidate objects a volume can detect: any mesh entity that isn't itself a volume.
-    const candidates = entities.filter((e) => e.mesh && !e.trigger?.enabled).map((e) => e.id);
+    // Candidate objects a volume can detect: any collidable mesh entity that isn't
+    // itself a volume. Collidable (not necessarily visible) — a hidden object with
+    // collision on still trips triggers; one with collision off is ignored.
+    const candidates = entities
+      .filter((e) => e.mesh && isMeshCollidable(e.mesh) && !e.trigger?.enabled)
+      .map((e) => e.id);
     const volumes = entities
       .filter((e) => e.trigger?.enabled && sm.getMesh(e.id))
       .map((e) => ({
@@ -265,6 +272,11 @@ export class ScriptRuntime {
       }
     };
 
+    // Volume boundaries + presets (dead zone / fog / water / sound), enforced each
+    // frame after scripts move things and triggers are detected.
+    this.volumeEnforcer = new VolumeEnforcer(this.sceneManager);
+    this.volumeEnforcer.build(entities);
+
     // Drive onUpdate from the render loop.
     this.observer = this.sceneManager.scene.onBeforeRenderObservable.add(() => {
       if (this.paused) return;
@@ -273,6 +285,7 @@ export class ScriptRuntime {
       this.time.elapsed += dt;
       for (const inst of this.instances) this.safeCall(inst, inst.onUpdate, dt);
       tickTriggers();
+      this.volumeEnforcer?.tick(dt);
       camera.update(dt);
       // Announce a win once all primary objectives are complete.
       this.objectives.checkWin();
@@ -318,6 +331,8 @@ export class ScriptRuntime {
       this.observer = null;
     }
     for (const inst of this.instances) inst.unwireCollision?.();
+    this.volumeEnforcer?.dispose();
+    this.volumeEnforcer = null;
     this.input.stop();
     this.instances = [];
     this.liveApis.clear();

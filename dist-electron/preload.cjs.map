@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["../electron/preload.ts"],
+  "sourcesContent": ["import { contextBridge, ipcRenderer } from 'electron';\n\n/**\n * Exposes a minimal, safe data bridge to the renderer (contextIsolation on). Its\n * presence is also how the renderer detects the desktop build (see src/buildEnv.ts).\n */\ncontextBridge.exposeInMainWorld('vyper', {\n  invoke: (method: string, ...args: unknown[]) => ipcRenderer.invoke('vyper:invoke', method, args),\n});\n"],
+  "mappings": ";AAAA,sBAA2C;AAM3C,8BAAc,kBAAkB,SAAS;AAAA,EACvC,QAAQ,CAAC,WAAmB,SAAoB,4BAAY,OAAO,gBAAgB,QAAQ,IAAI;AACjG,CAAC;",
+  "names": []
+}

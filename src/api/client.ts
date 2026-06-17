@@ -1,4 +1,4 @@
-import type { Entity, Vec3 } from '@/types';
+import type { Asset, Entity, Vec3 } from '@/types';
 
 /** Typed client for the Vyper backend (proxied at /api in dev). */
 
@@ -119,3 +119,52 @@ export const api = {
   createVersion: (sceneId: string, body: VersionInput) =>
     req<VersionMeta>(`/scenes/${sceneId}/versions`, { method: 'POST', body: JSON.stringify(body) }),
 };
+
+// Uploaded assets (3D models / textures stored by the backend). Kept OUT of the
+// `api` object so they aren't part of the swappable DataApi contract — runtime
+// upload is a web/server feature, not part of the desktop IPC data service.
+export const listUploadedAssets = () => req<{ assets: Asset[] }>('/assets');
+
+/** Delete an uploaded asset (removes its manifest entry + orphaned files). */
+export const deleteUploadedAsset = (id: string) => req<void>(`/assets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+export async function uploadAssets(files: File[]): Promise<{ assets: Asset[] }> {
+  const form = new FormData();
+  for (const f of files) form.append('files', f);
+  // Multipart — let the browser set the boundary Content-Type (don't use req()).
+  const res = await fetch('/api/assets', { method: 'POST', body: form });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error || `${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<{ assets: Asset[] }>;
+}
+
+// ---- CC0 asset library (Poly Haven / ambientCG), proxied + imported by the server ----
+
+export type Cc0Provider = 'polyhaven' | 'ambientcg';
+export type Cc0Type = 'material' | 'hdri';
+export type Cc0MapField = 'baseColorMap' | 'normalMap' | 'roughnessMap' | 'aoMap';
+
+export interface Cc0Item {
+  provider: Cc0Provider;
+  id: string;
+  name: string;
+  type: Cc0Type;
+  thumbUrl: string;
+  categories: string[];
+}
+
+/** Result of importing a CC0 asset: new texture assets, an optional ready-to-apply
+ *  material map (texture URLs by field), and an optional HDRI environment URL. */
+export interface Cc0ImportResult {
+  assets: Asset[];
+  material?: Partial<Record<Cc0MapField, string>>;
+  environmentUrl?: string;
+}
+
+export const browseCc0 = (provider: Cc0Provider, type: Cc0Type) =>
+  req<{ items: Cc0Item[] }>(`/assets/cc0/catalog?provider=${provider}&type=${type}`);
+
+export const importCc0 = (body: { provider: Cc0Provider; id: string; type?: Cc0Type; res?: string }) =>
+  req<Cc0ImportResult>('/assets/cc0/import', { method: 'POST', body: JSON.stringify(body) });

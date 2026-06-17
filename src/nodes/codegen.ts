@@ -194,6 +194,14 @@ class Compiler {
       case 'fx/stopEffect':
         out += `${indent}entity.stopEffect();\n`;
         break;
+      case 'world/playClip': {
+        const clip = String(f.clip ?? '');
+        out += `${indent}entity.playClip(${JSON.stringify(clip)}, ${f.loop === false ? 'false' : 'true'});\n`;
+        break;
+      }
+      case 'world/stopClip':
+        out += `${indent}entity.stopClip();\n`;
+        break;
       case 'objective/complete':
         out += `${indent}world.completeObjective(${JSON.stringify(String(f.goal ?? ''))});\n`;
         break;
@@ -270,6 +278,31 @@ class Compiler {
     const head = this.trace ? `  __node(${JSON.stringify(entry.id)});\n` : '';
     return head + this.execChain(entry.id, 'out', '  ', new Set());
   }
+
+  /**
+   * Edge-triggered "On Key Down" handlers, emitted into onUpdate. Each fires its
+   * exec chain the frame its key goes from up→down; the previous frame's state
+   * is remembered per node on entity.props so a held key fires only once. There
+   * can be several (one per key), so unlike compileEvent this handles all of them.
+   */
+  compileKeyEvents(): string {
+    let out = '';
+    for (const node of this.byId.values()) {
+      if (node.data.kind !== 'event/keyDown') continue;
+      const key = JSON.stringify(String(node.data.fields?.key ?? 'space'));
+      const stateKey = JSON.stringify(`__kd_${node.id}`);
+      const head = this.trace ? `      __node(${JSON.stringify(node.id)});\n` : '';
+      const body = this.execChain(node.id, 'out', '      ', new Set());
+      out +=
+        `  { const _kd = input.key(${key});\n` +
+        `    if (_kd && !entity.props[${stateKey}]) {\n` +
+        head +
+        body +
+        `    }\n` +
+        `    entity.props[${stateKey}] = _kd; }\n`;
+    }
+    return out;
+  }
 }
 
 export interface CodegenOptions {
@@ -281,6 +314,8 @@ export function generateCode(graph: ScriptGraph, opts: CodegenOptions = {}): str
   const c = new Compiler(graph, opts.trace);
   let start = c.compileEvent('event/start');
   let update = c.compileEvent('event/update');
+  // "On Key Down" events run per-frame inside onUpdate (edge-detected).
+  update += c.compileKeyEvents();
   const collision = c.compileEvent('physics/onCollision');
   const triggerEnter = c.compileEvent('trigger/onEnter');
   const triggerExit = c.compileEvent('trigger/onExit');

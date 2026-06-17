@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
-import type { Script, ScriptGraph } from '@/types';
+import type { CustomGeometry, Script, ScriptGraph } from '@/types';
+import { defaultMaterial, defaultTerrain, defaultVolume } from '@/types';
 import { generateCode } from '@/nodes/codegen';
 import { makeNode } from '@/nodes/nodeTypes';
 import type { EditorState, StoreSet, StoreGet } from '../editorTypes';
@@ -8,8 +9,13 @@ import { makeEntity, uniqueName, nextColor, v3 } from '../editorDefaults';
 type EntitySlice = Pick<
   EditorState,
   | 'addPrimitive'
+  | 'addModelEntity'
+  | 'addTerrain'
+  | 'updateTerrain'
+  | 'addCustomMesh'
   | 'addVolume'
   | 'setTrigger'
+  | 'updateVolume'
   | 'addPlayer'
   | 'addLight'
   | 'removeEntity'
@@ -18,6 +24,7 @@ type EntitySlice = Pick<
   | 'setEntityTag'
   | 'updateTransform'
   | 'updateMesh'
+  | 'updateMaterial'
   | 'updateLight'
   | 'setPhysics'
   | 'setProp'
@@ -36,6 +43,60 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
         name,
         mesh: kind === 'empty' ? undefined : { kind, color: nextColor(), visible: true },
         transform: { position: v3(0, y, 0), rotation: v3(), scale: v3(1, 1, 1) },
+      });
+      set((s) => ({ entities: [...s.entities, e], selectedId: e.id, sceneRevision: s.sceneRevision + 1 }));
+      return e.id;
+    },
+
+    addModelEntity: (assetId) => {
+      get().record('add');
+      const asset = get().assetLibrary.assets.find((a) => a.id === assetId);
+      const name = uniqueName(asset?.name || 'Model');
+      // Modeling-Studio assets carry baked geometry inline — drop it straight in as an
+      // editable custom mesh; file-backed models reference the asset id for the loader.
+      const mesh =
+        asset?.source === 'generated' && asset.geometry
+          ? { kind: 'custom' as const, color: nextColor(), visible: true, custom: asset.geometry }
+          : { kind: 'model' as const, assetId, color: '#ffffff', visible: true };
+      const e = makeEntity({
+        name,
+        mesh,
+        transform: { position: v3(0, 0, 0), rotation: v3(), scale: v3(1, 1, 1) },
+      });
+      set((s) => ({ entities: [...s.entities, e], selectedId: e.id, sceneRevision: s.sceneRevision + 1 }));
+      return e.id;
+    },
+
+    addTerrain: () => {
+      get().record('add');
+      const e = makeEntity({
+        name: uniqueName('Terrain'),
+        mesh: { kind: 'terrain', color: '#6b8f5a', visible: true, terrain: defaultTerrain() },
+        transform: { position: v3(0, 0, 0), rotation: v3(), scale: v3(1, 1, 1) },
+      });
+      set((s) => ({ entities: [...s.entities, e], selectedId: e.id, sceneRevision: s.sceneRevision + 1 }));
+      return e.id;
+    },
+
+    updateTerrain: (id, patch) => {
+      get().record(`terrain:${id}`);
+      set((s) => ({
+        entities: s.entities.map((e) => {
+          if (e.id !== id || !e.mesh) return e;
+          const base = e.mesh.terrain ?? defaultTerrain();
+          return { ...e, mesh: { ...e.mesh, terrain: { ...base, ...patch } } };
+        }),
+        sceneRevision: s.sceneRevision + 1,
+      }));
+    },
+
+    addCustomMesh: (geo: CustomGeometry, name = 'Mesh') => {
+      get().record('add');
+      const e = makeEntity({
+        name: uniqueName(name),
+        // Baked geometry is world-space, so the new entity sits at the origin.
+        mesh: { kind: 'custom', color: nextColor(), visible: true, custom: geo },
+        transform: { position: v3(0, 0, 0), rotation: v3(), scale: v3(1, 1, 1) },
       });
       set((s) => ({ entities: [...s.entities, e], selectedId: e.id, sceneRevision: s.sceneRevision + 1 }));
       return e.id;
@@ -62,6 +123,18 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
             ? { ...e, trigger: { enabled: true, once: false, filter: [], ...e.trigger, ...patch } }
             : e,
         ),
+        sceneRevision: s.sceneRevision + 1,
+      }));
+    },
+
+    updateVolume: (id, patch) => {
+      get().record(`volume:${id}`);
+      set((s) => ({
+        entities: s.entities.map((e) => {
+          if (e.id !== id || !e.trigger) return e;
+          const base = e.trigger.volume ?? defaultVolume();
+          return { ...e, trigger: { ...e.trigger, volume: { ...base, ...patch } } };
+        }),
         sceneRevision: s.sceneRevision + 1,
       }));
     },
@@ -138,10 +211,16 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
           scripts[nid] = { ...orig, id: nid, graph: structuredClone(orig.graph) };
           return nid;
         });
+        // Strip the source id so makeEntity mints a fresh one — otherwise the clone
+        // keeps src.id (makeEntity spreads the partial last) and the two entities
+        // collide to one tracked mesh. Offset slightly so the copy is visibly separate.
+        const { id: _srcId, ...rest } = structuredClone(src);
+        const p = src.transform.position;
         const copy = makeEntity({
-          ...structuredClone(src),
+          ...rest,
           name: uniqueName(src.name),
           scriptIds: newScriptIds,
+          transform: { ...structuredClone(src.transform), position: v3(p.x + 1, p.y, p.z + 1) },
         });
         return { entities: [...s.entities, copy], scripts, selectedId: copy.id, sceneRevision: s.sceneRevision + 1 };
       });
@@ -174,6 +253,18 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
         entities: s.entities.map((e) =>
           e.id === id && e.mesh ? { ...e, mesh: { ...e.mesh, ...patch } } : e,
         ),
+        sceneRevision: s.sceneRevision + 1,
+      }));
+    },
+
+    updateMaterial: (id, patch) => {
+      get().record(`material:${id}`);
+      set((s) => ({
+        entities: s.entities.map((e) => {
+          if (e.id !== id || !e.mesh) return e;
+          const base = e.mesh.material ?? defaultMaterial();
+          return { ...e, mesh: { ...e.mesh, material: { ...base, ...patch } } };
+        }),
         sceneRevision: s.sceneRevision + 1,
       }));
     },

@@ -1,5 +1,6 @@
 import type { EditorState, StoreSet } from '../editorTypes';
 import { defaultGameCamera } from '../editorDefaults';
+import { defaultBrush } from '@/types';
 
 type UiSlice = Pick<
   EditorState,
@@ -13,6 +14,9 @@ type UiSlice = Pick<
   | 'updateGameCamera'
   | 'resetGameCamera'
   | 'toggleGrid'
+  | 'toggleEditorEffects'
+  | 'toggleSurfaces'
+  | 'toggleSnapToGrid'
   | 'play'
   | 'pause'
   | 'stop'
@@ -20,6 +24,9 @@ type UiSlice = Pick<
   | 'setShowShortcuts'
   | 'setShowDesign'
   | 'setRunTour'
+  | 'setSculpting'
+  | 'setMayaNav'
+  | 'setBrush'
 >;
 
 /** Selection, editor mode/shortcuts, view objects (camera/grid), and play control. */
@@ -40,6 +47,9 @@ export function createUiSlice(set: StoreSet): UiSlice {
     resetGameCamera: () =>
       set((s) => ({ gameCamera: defaultGameCamera(s.mode), cameraRevision: s.cameraRevision + 1 })),
     toggleGrid: () => set((s) => ({ gridVisible: !s.gridVisible })),
+    toggleEditorEffects: () => set((s) => ({ editorEffects: !s.editorEffects })),
+    toggleSurfaces: () => set((s) => ({ showSurfaces: !s.showSurfaces })),
+    toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
 
     play: () => set({ playState: 'playing' }),
     pause: () => set((s) => ({ playState: s.playState === 'paused' ? 'playing' : 'paused' })),
@@ -48,5 +58,10 @@ export function createUiSlice(set: StoreSet): UiSlice {
     setShowShortcuts: (v) => set({ showShortcuts: v }),
     setShowDesign: (v) => set({ showDesign: v }),
     setRunTour: (v) => set({ runTour: v }),
+
+    // Terrain sculpt tool (view state, not undo-recorded; commits go through updateTerrain).
+    setSculpting: (v) => set({ sculpting: v }),
+    setMayaNav: (v) => set({ mayaNav: v }),
+    setBrush: (patch) => set((s) => ({ brush: { ...(s.brush ?? defaultBrush()), ...patch } })),
   };
 }

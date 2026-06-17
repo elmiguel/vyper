@@ -1,6 +1,6 @@
 import { emptyDesign } from '@/types';
 import type { EditorState, StoreSet } from '../editorTypes';
-import { defaultEntities, defaultGameCamera } from '../editorDefaults';
+import { defaultEntities, defaultGameCamera, dedupeEntityIds } from '../editorDefaults';
 
 type PersistenceSlice = Pick<
   EditorState,
@@ -12,7 +12,8 @@ export function createPersistenceSlice(set: StoreSet): PersistenceSlice {
   return {
     hydrateScene: (data) =>
       set((s) => ({
-        entities: data.entities,
+        // Repair any duplicate entity ids saved by older builds (see dedupeEntityIds).
+        entities: dedupeEntityIds(data.entities),
         gameCamera: data.gameCamera && data.gameCamera.position ? data.gameCamera : defaultGameCamera(s.mode),
         gridVisible: data.gridVisible ?? true,
         selectedId: null,

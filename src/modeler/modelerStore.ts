@@ -1,0 +1,457 @@
+import { create } from 'zustand';
+import type { CustomGeometry } from '@/types';
+import { HalfEdgeMesh } from '@/kernel/HalfEdgeMesh';
+import { buildPrimitive, type KernelPrimitive } from '@/kernel/primitives';
+import { toGeometry, fromGeometry } from '@/kernel/render';
+import { CommandStack, snapshotCommand } from '@/kernel/commands';
+import { extrudeFaces } from '@/kernel/operations/extrude';
+import { edgeLoop } from '@/kernel/selectionOps';
+import type { KnifePoint } from '@/kernel/operations/knife';
+import { createEditActions, type Clip, type EditActionsCtx } from './modelerEditActions';
+import { createTransformActions } from './modelerTransformActions';
+import { createMeshActions, type MeshActions } from './modelerMeshActions';
+import { useEditorStore } from '@/store/editorStore';
+import type { KeymapId } from '@/input/keymaps';
+import type { ModelerPick } from './ModelerScene';
+
+/** Transform tool active in the modeling viewport. */
+export type ModelerTool = 'select' | 'move' | 'rotate' | 'scale';
+
+/** An interactive mesh-editing tool that takes over viewport input, or 'none'. */
+export type EditTool = 'none' | 'loopcut' | 'knife' | 'drawpoly' | 'sketchtopo';
+
+/**
+ * What the selection/transform acts on: the whole object, or its vertex / edge / face
+ * components. Switched with the 1/2/3/4 keys (object/vertex/edge/face). Object mode lets
+ * you select and transform the entire model; the component modes edit its topology.
+ */
+export type ComponentMode = 'object' | 'vertex' | 'edge' | 'face';
+
+/**
+ * State for the 3D Modeling Studio. The half-edge {@link HalfEdgeMesh} kernel is the
+ * source of truth for the model; every edit runs as a reversible {@link CommandStack}
+ * command, then bakes render geometry for the viewport (Babylon only renders). This is
+ * intentionally separate from the game `editorStore` — no scene entities, scripts, or
+ * play state. The baked geometry is mirrored into the project's single mesh entity so it
+ * persists through the existing save system.
+ */
+export interface ModelerState extends MeshActions {
+  /** Baked render geometry (kernel → Babylon). Replaced on every edit. */
+  geometry: CustomGeometry;
+  /**
+   * Selected component ids — kernel indices whose meaning depends on {@link component}:
+   * face ids in 'face' mode, vertex ids in 'vertex' mode, edge ids in 'edge' mode, and the
+   * faces of the selected island(s) in 'object' mode.
+   */
+  selection: number[];
+  /** Active component mode (object / vertex / edge / face) driven by the 1–4 keys. */
+  component: ComponentMode;
+  /** Whether any object (island) is selected in object mode — kept in sync with `selection`. */
+  objectSelected: boolean;
+  /** Switch component mode; clears the current selection. */
+  setComponent: (component: ComponentMode) => void;
+  /** Bumped when geometry changes (drives viewport rebuild). */
+  revision: number;
+  /** Bumped when the selection changes (drives highlight refresh). */
+  selRevision: number;
+  faceCount: number;
+  canUndo: boolean;
+  canRedo: boolean;
+  /** Active transform tool (drives which gizmo shows). */
+  tool: ModelerTool;
+  /** Active keyboard layout for the modeling tools. */
+  keymap: KeymapId;
+  /** Whether the wireframe edge overlay is drawn on the model. */
+  showWireframe: boolean;
+  /** Whether transform gizmo drags snap to grid increments (viewport magnet toggle). */
+  snapToGrid: boolean;
+  /** Active interactive edit tool (loop cut / knife), or 'none' for normal select/gizmo. */
+  editTool: EditTool;
+  setTool: (tool: ModelerTool) => void;
+  /** Activate/clear an interactive edit tool; toggling the active one returns to 'none'. */
+  setEditTool: (tool: EditTool) => void;
+  setKeymap: (id: KeymapId) => void;
+  toggleWireframe: () => void;
+  toggleSnapToGrid: () => void;
+  /** Bumped to ask the viewport to frame the camera on the model. */
+  frameRequest: number;
+  requestFrame: () => void;
+
+  /** Load the kernel from the project's mesh entity (or a default cube). */
+  init: () => void;
+  /** Add a fresh primitive to the model (a new island beside the current geometry). */
+  addPrimitive: (kind: KernelPrimitive) => void;
+  /** Toggle a picked face (by polygon index) into the selection. */
+  pickFace: (polygonIndex: number | null, additive: boolean) => void;
+  /** Apply a viewport pick per the active component mode. `additive` (Shift) adds to the
+   *  selection, `subtract` (Ctrl/Cmd) removes from it, neither replaces. Object-mode picks
+   *  select the clicked island (connected component), not the whole model. */
+  applyPick: (pick: ModelerPick, additive?: boolean, subtract?: boolean, loop?: boolean) => void;
+  clearSelection: () => void;
+  /** Extrude the selected faces along their averaged normal. */
+  extrude: (distance?: number) => void;
+  /** Connect the selected vertices with new edges, splitting the shared faces (vertex mode). */
+  connect: () => void;
+  /** Bridge the two selected edge loops with a band of quads (edge mode). */
+  bridge: () => void;
+  /** Preview the loop a cut through a compacted edge [a,b] at slide ratio `t` (0..1, default
+   *  0.5) would insert (model-space segments). */
+  loopCutPreview: (compactEdge: [number, number] | null, t?: number) => Array<[V3, V3]>;
+  /** Commit a loop cut through a compacted edge [a,b] at slide ratio `t` (0..1, default 0.5). */
+  loopCutCommit: (compactEdge: [number, number], t?: number) => void;
+  /** Commit a knife path (compacted edge points). Returns true if a cut was made. */
+  knifeCommit: (path: KnifePoint[]) => boolean;
+  /** Commit a draw-poly path (model-space points) as a new face. Returns true on success. */
+  drawPolyCommit: (points: V3[]) => boolean;
+  /** Grid resolution R for sketch-retopo patches (every patch is an R×R quad grid). */
+  retopoResolution: number;
+  setRetopoResolution: (r: number) => void;
+  /** Replace the mesh with a sketch-retopo quad cage (welded verts + quad face loops). */
+  sketchTopoCommit: (verts: V3[], faces: number[][]) => void;
+  /** Delete the current selection per component mode (faces / verts / edges / object). */
+  deleteSelection: () => void;
+  /** Duplicate the selected faces (or whole object) in place; re-selects the copies. */
+  duplicateSelection: () => void;
+  /** Copy the selected faces (or whole object) to the modeler clipboard. */
+  copySelection: () => void;
+  /** Paste the clipboard faces into the mesh; re-selects them. */
+  paste: () => void;
+  /** Whether the clipboard currently holds geometry (drives Paste enablement). */
+  canPaste: () => boolean;
+  /** Add a face from the selected vertices (vertex mode, ≥3). */
+  addFaceFromSelection: () => void;
+  /** Add a vertex at the midpoint of each selected edge (edge mode). */
+  addVertexOnEdges: () => void;
+  undo: () => void;
+  redo: () => void;
+  /** Polygon indices to highlight: the selected faces (object mode = the selected island). */
+  selectionPolygons: () => number[];
+  /** Compacted vertex indices to highlight (vertex mode only). */
+  selectionVerticesCompact: () => number[];
+  /** Compacted edge endpoint pairs to highlight (edge mode only). */
+  selectionEdgesCompact: () => Array<[number, number]>;
+  /** World centroid of the active selection's vertices, or null when nothing is selected. */
+  selectionCentroid: () => [number, number, number] | null;
+  /** Begin a gizmo drag (snapshots the mesh so the whole drag is one undo step). */
+  beginTransform: () => void;
+  /** Move the selected faces' vertices by a delta during a gizmo drag (no command yet). */
+  translateSelectionLive: (dx: number, dy: number, dz: number) => void;
+  /** Rotate the selected vertices by a delta quaternion about a pivot (live). */
+  rotateSelectionLive: (q: { x: number; y: number; z: number; w: number }, pivot: [number, number, number]) => void;
+  /** Scale the selected vertices about a pivot (live). */
+  scaleSelectionLive: (sx: number, sy: number, sz: number, pivot: [number, number, number]) => void;
+  /** End a gizmo drag — commit the net move as a single undoable command. */
+  endTransform: () => void;
+}
+
+// Kernel + command stack live outside the reactive state (they're mutable instances).
+let mesh = new HalfEdgeMesh();
+let faceOrder: number[] = [];
+// Compaction maps mirroring `toGeometry` so the viewport (which works in dense, compacted
+// indices) and the kernel (sparse ids) can be translated for vertex/edge picking + highlight.
+let vertOrder: number[] = []; // compacted index → kernel vertex id
+let vertCompact = new Map<number, number>(); // kernel vertex id → compacted index
+let edgeByPair = new Map<string, number>(); // "min_max" kernel vertex pair → kernel edge id
+const stack = new CommandStack();
+/** Copied face geometry (positions + local-index loops), for Copy/Paste. */
+let clipboard: Clip | null = null;
+
+/** Order-independent key for an undirected vertex pair. */
+const pairKey = (a: number, b: number) => (a < b ? `${a}_${b}` : `${b}_${a}`);
+
+/** Unique vertex ids touched by a set of faces. */
+function verticesOfFaces(m: HalfEdgeMesh, faceIds: number[]): number[] {
+  const set = new Set<number>();
+  for (const f of faceIds) for (const v of m.faceVertices(f)) set.add(v);
+  return [...set];
+}
+
+/** Rebuild the compaction maps from the current kernel mesh (matches `toGeometry`). */
+function refreshMaps(m: HalfEdgeMesh): void {
+  faceOrder = m.liveFaces();
+  vertOrder = [];
+  vertCompact = new Map();
+  m.vertices.forEach((v, i) => {
+    if (v.removed) return;
+    vertCompact.set(i, vertOrder.length);
+    vertOrder.push(i);
+  });
+  edgeByPair = new Map();
+  for (const e of m.liveEdges()) {
+    const [a, b] = m.edgeVertices(e);
+    edgeByPair.set(pairKey(a, b), e);
+  }
+}
+
+/** Translate a compacted edge (two dense vertex indices) to its kernel edge id, or null. */
+function kernelEdgeFromCompact(a: number, b: number): number | null {
+  const ka = vertOrder[a];
+  const kb = vertOrder[b];
+  if (ka === undefined || kb === undefined) return null;
+  return edgeByPair.get(pairKey(ka, kb)) ?? null;
+}
+
+/** The project entity whose geometry mirrors the model (for persistence). */
+function projectMeshEntityId(): string | null {
+  const e = useEditorStore.getState().entities.find((en) => en.mesh);
+  return e?.id ?? null;
+}
+
+export const useModelerStore = create<ModelerState>((set, get) => {
+  /** Re-bake geometry + compaction maps from the kernel and bump the revision. */
+  const rebuild = () => {
+    refreshMaps(mesh);
+    set((s) => ({ geometry: toGeometry(mesh), revision: s.revision + 1, faceCount: faceOrder.length, canUndo: stack.canUndo(), canRedo: stack.canRedo() }));
+  };
+  /** Kernel vertex ids the active selection resolves to (drives transforms + centroid). */
+  const selectedVertices = (): number[] => {
+    const { component, selection } = get();
+    // Object mode now selects islands (face sets), like face mode — not the whole mesh.
+    if (component === 'object' || component === 'face') return verticesOfFaces(mesh, selection);
+    if (component === 'vertex') return selection.filter((v) => mesh.vertices[v] && !mesh.vertices[v].removed);
+    // edge: union of both endpoints of each selected edge
+    const verts = new Set<number>();
+    for (const e of selection) {
+      if (mesh.edges[e] && !mesh.edges[e].removed) {
+        const [a, b] = mesh.edgeVertices(e);
+        verts.add(a);
+        verts.add(b);
+      }
+    }
+    return [...verts];
+  };
+  /** Replace / add / remove a set of ids in the selection (drives Shift-add, Ctrl-remove). */
+  const updateSelection = (ids: number[], mode: 'replace' | 'add' | 'remove') => {
+    set((s) => {
+      let selection: number[];
+      if (mode === 'replace') selection = [...new Set(ids)];
+      else if (mode === 'add') selection = [...new Set([...s.selection, ...ids])];
+      else {
+        const drop = new Set(ids);
+        selection = s.selection.filter((x) => !drop.has(x));
+      }
+      return { selection, objectSelected: s.component === 'object' ? selection.length > 0 : s.objectSelected, selRevision: s.selRevision + 1 };
+    });
+  };
+  /** Persist the baked geometry into the project's mesh entity (so save() captures it). */
+  const sync = () => {
+    const id = projectMeshEntityId();
+    if (id) useEditorStore.getState().commitMeshGeometry(id, get().geometry);
+  };
+  /** Shared context for the extracted edit/mesh action factories. */
+  const editCtx: EditActionsCtx = {
+    mesh: () => mesh, stack, get, set, rebuild, sync,
+    faceOrder: () => faceOrder, selectedVertices, kernelEdgeFromCompact,
+    getClipboard: () => clipboard, setClipboard: (c) => { clipboard = c; },
+  };
+
+  return {
+    geometry: { positions: [], indices: [], normals: [] },
+    selection: [],
+    component: 'object',
+    objectSelected: false,
+    revision: 0,
+    selRevision: 0,
+    faceCount: 0,
+    canUndo: false,
+    canRedo: false,
+    tool: 'move',
+    editTool: 'none',
+    keymap: 'maya',
+    showWireframe: true,
+    snapToGrid: false,
+    retopoResolution: 4,
+    frameRequest: 0,
+
+    setTool: (tool) => set({ tool }),
+    setRetopoResolution: (r) => set({ retopoResolution: Math.max(1, Math.min(16, Math.round(r))) }),
+    // Tools own viewport input; activating one drops the selection (detaches the gizmo).
+    setEditTool: (tool) =>
+      set((s) => ({ editTool: s.editTool === tool ? 'none' : tool, selection: [], objectSelected: false, selRevision: s.selRevision + 1 })),
+    setComponent: (component) =>
+      set((s) => ({ component, selection: [], objectSelected: false, selRevision: s.selRevision + 1 })),
+    setKeymap: (id) => set({ keymap: id }),
+    toggleWireframe: () => set((s) => ({ showWireframe: !s.showWireframe })),
+    toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
+    requestFrame: () => set((s) => ({ frameRequest: s.frameRequest + 1 })),
+
+    init: () => {
+      const ent = useEditorStore.getState().entities.find((e) => e.mesh);
+      const custom = ent?.mesh?.custom;
+      mesh = custom ? fromGeometry(custom) : buildPrimitive('cube', 2);
+      stack.clear();
+      set((s) => ({ selection: [], objectSelected: false }));
+      rebuild();
+    },
+
+    addPrimitive: (kind) => {
+      stack.run(snapshotCommand(mesh, `Add ${kind}`, () => appendPrimitive(mesh, kind)));
+      set((s) => ({ selection: [], objectSelected: false }));
+      rebuild();
+      sync();
+    },
+
+    pickFace: (polygonIndex, additive) => {
+      if (polygonIndex === null) {
+        if (!additive) set((s) => ({ selection: [], selRevision: s.selRevision + 1 }));
+        return;
+      }
+      const faceId = faceOrder[polygonIndex];
+      if (faceId === undefined) return;
+      set((s) => {
+        const has = s.selection.includes(faceId);
+        const selection = additive
+          ? has
+            ? s.selection.filter((f) => f !== faceId)
+            : [...s.selection, faceId]
+          : has && s.selection.length === 1
+            ? []
+            : [faceId];
+        return { selection, selRevision: s.selRevision + 1 };
+      });
+    },
+
+    applyPick: (pick, additive = false, subtract = false, loop = false) => {
+      const component = get().component;
+      const mode = subtract ? 'remove' : additive ? 'add' : 'replace';
+      if (pick === null) {
+        if (mode === 'replace') get().clearSelection();
+        return;
+      }
+      if (pick.kind === 'object' && component === 'object') {
+        // Select the clicked island (connected component), not the whole model.
+        const kernelFace = faceOrder[pick.face];
+        if (kernelFace !== undefined) updateSelection(mesh.faceIsland(kernelFace), mode);
+        return;
+      }
+      if (pick.kind === 'face' && component === 'face') {
+        const kernelFace = faceOrder[pick.face];
+        if (kernelFace !== undefined) updateSelection([kernelFace], mode);
+        return;
+      }
+      if (pick.kind === 'vertex' && component === 'vertex') {
+        const vid = vertOrder[pick.vertex];
+        if (vid !== undefined) updateSelection([vid], mode);
+        return;
+      }
+      if (pick.kind === 'edge' && component === 'edge') {
+        const a = vertOrder[pick.edge[0]];
+        const b = vertOrder[pick.edge[1]];
+        const eid = a !== undefined && b !== undefined ? edgeByPair.get(pairKey(a, b)) : undefined;
+        // Double-click expands to the whole edge loop through the clicked edge; the modifier
+        // (replace / shift-add / ctrl-remove) then applies to every edge in that loop.
+        if (eid !== undefined) updateSelection(loop ? edgeLoop(mesh, eid) : [eid], mode);
+      }
+    },
+
+    clearSelection: () => set((s) => ({ selection: [], objectSelected: false, selRevision: s.selRevision + 1 })),
+
+    extrude: (distance = 0.5) => {
+      const faces = get().selection;
+      if (faces.length === 0) return;
+      let caps: number[] = [];
+      stack.run(snapshotCommand(mesh, 'Extrude', () => {
+        caps = extrudeFaces(mesh, faces, distance);
+      }));
+      set({ selection: caps });
+      rebuild();
+      sync();
+    },
+
+    ...createEditActions(editCtx),
+    ...createMeshActions(editCtx),
+
+    undo: () => {
+      stack.undo();
+      set((s) => ({ selection: [], objectSelected: false }));
+      rebuild();
+      sync();
+    },
+    redo: () => {
+      stack.redo();
+      set((s) => ({ selection: [], objectSelected: false }));
+      rebuild();
+      sync();
+    },
+
+    selectionPolygons: () => {
+      const { component, selection } = get();
+      // Object + face modes highlight the selected faces (object = the picked island).
+      if (component === 'object' || component === 'face') return selection.map((faceId) => faceOrder.indexOf(faceId)).filter((i) => i >= 0);
+      return [];
+    },
+
+    selectionVerticesCompact: () => {
+      if (get().component !== 'vertex') return [];
+      return get().selection.map((vid) => vertCompact.get(vid)).filter((i): i is number => i !== undefined);
+    },
+
+    selectionEdgesCompact: () => {
+      if (get().component !== 'edge') return [];
+      const out: Array<[number, number]> = [];
+      for (const e of get().selection) {
+        if (!mesh.edges[e] || mesh.edges[e].removed) continue;
+        const [a, b] = mesh.edgeVertices(e);
+        const ca = vertCompact.get(a);
+        const cb = vertCompact.get(b);
+        if (ca !== undefined && cb !== undefined) out.push([ca, cb]);
+      }
+      return out;
+    },
+
+    selectionCentroid: () => {
+      const vids = selectedVertices();
+      if (vids.length === 0) return null;
+      let x = 0;
+      let y = 0;
+      let z = 0;
+      for (const v of vids) {
+        const p = mesh.vertices[v].position;
+        x += p[0];
+        y += p[1];
+        z += p[2];
+      }
+      return [x / vids.length, y / vids.length, z / vids.length];
+    },
+
+    ...createTransformActions(editCtx),
+  };
+});
+
+type V3 = import('@/kernel/HalfEdgeMesh').V3;
+
+/** Positions + faces for a fresh primitive (as a polygon soup). */
+function primitiveData(kind: KernelPrimitive): [V3[], number[][]] {
+  const m = buildPrimitive(kind, 2);
+  const verts = m.vertices.map((v) => [...v.position] as V3);
+  const faces = m.liveFaces().map((f) => m.faceVertices(f));
+  return [verts, faces];
+}
+
+/**
+ * Add a primitive to the model as a new, separate island rather than replacing it: the
+ * existing geometry is kept, and the new primitive is placed just to the right of the
+ * current bounding box so it lands beside what's there. (A single kernel mesh can hold
+ * several disconnected components; per-object management is a later addition.)
+ */
+function appendPrimitive(target: HalfEdgeMesh, kind: KernelPrimitive): void {
+  const cur = toGeometry(target);
+  const curVerts: V3[] = [];
+  for (let i = 0; i < (cur.polyVerts?.length ?? 0); i += 3) {
+    curVerts.push([cur.polyVerts![i], cur.polyVerts![i + 1], cur.polyVerts![i + 2]]);
+  }
+  const curFaces = cur.polygons ?? [];
+  const [nVerts, nFaces] = primitiveData(kind);
+
+  // Offset the newcomer to sit beside the current model (its right edge + a gap).
+  let dx = 0;
+  if (curVerts.length) {
+    const maxX = Math.max(...curVerts.map((v) => v[0]));
+    const newMinX = Math.min(...nVerts.map((v) => v[0]));
+    dx = maxX - newMinX + 1; // 1-unit gap between bounding boxes
+  }
+  const placed = nVerts.map((v) => [v[0] + dx, v[1], v[2]] as V3);
+  const base = curVerts.length;
+  const faces = [...curFaces, ...nFaces.map((f) => f.map((i) => i + base))];
+  target.buildFromPolygons([...curVerts, ...placed], faces);
+}

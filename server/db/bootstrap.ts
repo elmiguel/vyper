@@ -1,13 +1,11 @@
-import { pool } from './client.js';
-
 /**
- * Idempotent schema creation, run on server startup so Vyper works against a
- * fresh Postgres with no manual migration step. Mirrors schema.ts. For managed
- * migrations later, use drizzle-kit (see drizzle.config.ts).
+ * Idempotent schema creation shared by the web server (Postgres) and the desktop
+ * embedded DB (PGlite). The caller passes an `exec` that runs a SQL string, so the
+ * SAME `CREATE TABLE IF NOT EXISTS` definitions seed both. Mirrors schema.ts. For
+ * managed migrations later, use drizzle-kit (see drizzle.config.ts).
  */
-const SQL = `
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
+const TABLES_SQL = `
 CREATE TABLE IF NOT EXISTS app_state (
   id          text PRIMARY KEY DEFAULT 'singleton',
   last_game_id uuid,
@@ -70,6 +68,17 @@ CREATE INDEX IF NOT EXISTS scene_versions_scene_idx ON scene_versions(scene_id, 
 INSERT INTO app_state (id) VALUES ('singleton') ON CONFLICT (id) DO NOTHING;
 `;
 
-export async function ensureSchema() {
-  await pool.query(SQL);
+/**
+ * Create all tables/indexes if missing. `exec` runs one SQL string (e.g.
+ * `(sql) => pool.query(sql)` on the server, `(sql) => pglite.exec(sql)` on desktop).
+ */
+export async function ensureSchema(exec: (sql: string) => Promise<unknown>): Promise<void> {
+  // pgcrypto backfills gen_random_uuid() on older Postgres. It's core on PG13+ and
+  // on PGlite (PG15), so a missing/unavailable extension here is non-fatal.
+  try {
+    await exec('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
+  } catch {
+    /* core gen_random_uuid() — extension not required */
+  }
+  await exec(TABLES_SQL);
 }

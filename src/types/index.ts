@@ -1,4 +1,13 @@
 import type { Edge, Node } from '@xyflow/react';
+import type { MaterialConfig, RenderSettings } from './visuals';
+import { defaultRenderSettings } from './visuals';
+import type { VolumeConfig } from './volume';
+import type { SkinData, RigComponent } from './studio';
+
+// Visual/material/render types live in ./visuals; volume types in ./volume —
+// re-export both so `@/types` stays the single import surface.
+export * from './visuals';
+export * from './volume';
 
 /** A 3-component vector used for transforms. */
 export interface Vec3 {
@@ -20,6 +29,11 @@ export type GameMode = '2d' | '3d';
 export const PRIMS_3D: PrimitiveKind[] = ['box', 'sphere', 'cylinder', 'cone', 'plane', 'ground', 'empty'];
 export const PRIMS_2D: PrimitiveKind[] = ['square', 'circle', 'triangle', 'plane', 'empty'];
 export const primsFor = (mode: GameMode): PrimitiveKind[] => (mode === '2d' ? PRIMS_2D : PRIMS_3D);
+
+/** Shapes offered for trigger volumes (sensor zones), per game mode. */
+export const VOLUME_SHAPES_3D: PrimitiveKind[] = ['box', 'sphere', 'cylinder'];
+export const VOLUME_SHAPES_2D: PrimitiveKind[] = ['square', 'circle'];
+export const volumesFor = (mode: GameMode): PrimitiveKind[] => (mode === '2d' ? VOLUME_SHAPES_2D : VOLUME_SHAPES_3D);
 
 export type LightKind = 'hemispheric' | 'point' | 'directional';
 
@@ -45,12 +59,98 @@ export interface Script {
   enabled: boolean;
 }
 
+/** Mesh source: a built-in primitive, an external 3D model, a sculptable terrain,
+ *  or a baked custom mesh (e.g. the result of a CSG boolean operation). */
+export type MeshKind = PrimitiveKind | 'model' | 'terrain' | 'custom';
+
+/** Boolean operation used to combine two meshes into a custom mesh. */
+export type BooleanOp = 'union' | 'subtract' | 'intersect';
+
+/** Baked, serializable geometry for a `kind: 'custom'` mesh (CSG result / sculpt /
+ *  modeled mesh). `positions`/`indices`/`normals` are the triangulated render arrays
+ *  (Babylon's VertexData layout). The optional `polyVerts`/`polygons` preserve the
+ *  editable **polygon** topology (quads/n-gons) so meshes round-trip as quads instead
+ *  of triangle soup when re-opened in the Modeling Studio. */
+export interface CustomGeometry {
+  positions: number[];
+  indices: number[];
+  normals: number[];
+  uvs?: number[];
+  /** Welded vertex positions (xyz triples) for the polygon representation. */
+  polyVerts?: number[];
+  /** Face loops (vertex indices into `polyVerts`) — quads/n-gons, not triangles. */
+  polygons?: number[][];
+}
+
+/**
+ * A sculptable ground plane. `heights` is a row-major (subdivisions+1)² array of
+ * normalized [0,1] elevations, scaled by `maxHeight` at build time, so changing
+ * `maxHeight` rescales existing sculpts. Persisted inline with the entity.
+ */
+export interface TerrainConfig {
+  /** World-unit width/depth of the (square) terrain. */
+  size: number;
+  /** Grid resolution; vertices per side = subdivisions + 1. */
+  subdivisions: number;
+  /** World-unit height applied to a normalized elevation of 1. */
+  maxHeight: number;
+  /** Normalized heightfield (row-major, length (subdivisions+1)²). Empty = flat. */
+  heights: number[];
+}
+
+/** A flat default terrain: a 40×40 plane at a workable sculpting resolution. */
+export function defaultTerrain(): TerrainConfig {
+  return { size: 40, subdivisions: 64, maxHeight: 8, heights: [] };
+}
+
+/** Terrain sculpt brush operation. */
+export type BrushMode = 'raise' | 'lower' | 'smooth' | 'flatten';
+
+/** Terrain sculpt brush settings (shared by the UI and the sculpt controller). */
+export interface BrushParams {
+  /** Brush radius in world units. */
+  radius: number;
+  /** Per-application strength. */
+  strength: number;
+  mode: BrushMode;
+}
+
+export function defaultBrush(): BrushParams {
+  return { radius: 4, strength: 0.05, mode: 'raise' };
+}
+
+// Modeling Studio types (sculpt brushes, rigs, skeletal animation) live in ./studio.
+export * from './studio';
+
 export interface MeshConfig {
-  kind: PrimitiveKind;
+  kind: MeshKind;
+  /** When kind === 'model', the id of the Asset (see AssetLibrary) to load. */
+  assetId?: string;
   /** hex color, e.g. #44aaff */
   color: string;
+  /** Optional PBR/standard surface material (primitives). Absent = flat `color`. */
+  material?: MaterialConfig;
+  /** Sculptable terrain config — present only when `kind === 'terrain'`. */
+  terrain?: TerrainConfig;
+  /** Baked geometry — present only when `kind === 'custom'` (CSG result). */
+  custom?: CustomGeometry;
+  /** Skin weights binding this mesh to its entity's rig skeleton (see `Entity.rig`). */
+  skin?: SkinData;
+  /** Whether the surface is rendered. Independent of `collision`: a hidden mesh
+   *  can still be collidable, so it can be toggled invisible at runtime while
+   *  still interacting with the world. */
   visible: boolean;
+  /** Whether the mesh is collidable/detectable by the world — physics colliders
+   *  and trigger-volume overlap. Absent/undefined counts as collidable (the
+   *  default), so existing scenes and newly-created meshes collide as before. */
+  collision?: boolean;
 }
+
+/** True when a mesh participates in world collision (physics + triggers). No mesh
+ *  means nothing to collide with; a present mesh is collidable unless `collision`
+ *  is explicitly false (absent/undefined counts as collidable for back-compat). */
+export const isMeshCollidable = (mesh?: Pick<MeshConfig, 'collision'>): boolean =>
+  !!mesh && mesh.collision !== false;
 
 export interface LightConfig {
   kind: LightKind;
@@ -77,6 +177,18 @@ export interface PhysicsConfig {
   shape: PhysicsShape;
 }
 
+/**
+ * High-level physics presets surfaced in the Inspector:
+ * - `none`  — no physics body.
+ * - `solid` — a static collider: blocks the player and never moves (walls, platforms).
+ * - `rigid` — a simulated body that falls and reacts (dynamic or kinematic).
+ */
+export type PhysicsMode = 'none' | 'solid' | 'rigid';
+
+/** Derive the high-level physics mode from a (possibly absent) physics component. */
+export const physicsModeOf = (p?: Pick<PhysicsConfig, 'enabled' | 'type'>): PhysicsMode =>
+  !p?.enabled ? 'none' : p.type === 'static' ? 'solid' : 'rigid';
+
 /** Marks an entity's mesh as a sensor "volume" that fires enter/exit/stay events. */
 export interface TriggerConfig {
   enabled: boolean;
@@ -84,6 +196,8 @@ export interface TriggerConfig {
   once: boolean;
   /** Names or tags that count as triggering this volume. Empty = any mesh object. */
   filter: string[];
+  /** Optional movement boundary + preset behaviour (dead zone / fog / water / sound). */
+  volume?: VolumeConfig;
 }
 
 // ---------------- Effects (particle VFX) ----------------
@@ -185,6 +299,8 @@ export interface Entity {
   tag?: string;
   /** Particle effects attached to this entity (VFX). */
   effects?: EffectInstance[];
+  /** Optional armature: skeleton, current pose, and keyframe clips (see Modeling Studio). */
+  rig?: RigComponent;
   /** IDs of scripts (behaviours) attached to this entity. */
   scriptIds: string[];
   /** Arbitrary user data exposed to scripts via entity.props. */
@@ -285,13 +401,37 @@ export interface GameDesign {
   objectives: Objective[];
   /** On-screen HUD layout (shared across scenes). */
   hud: HudLayout;
+  /** High-quality rendering / lighting config (3D). */
+  render: RenderSettings;
+}
+
+/**
+ * A reusable, named entity template — captured from a scene entity (its full
+ * config + attached behaviours) and stamped back into any scene as a fresh
+ * instance. Stored per game (in `games.settings.prefabs`), shared across scenes.
+ */
+export interface PrefabDef {
+  id: string;
+  name: string;
+  /** The captured entity (its `id` is ignored — a new one is minted on instantiate). */
+  entity: Entity;
+  /** The entity's behaviours, cloned with new ids on instantiate. */
+  scripts: Script[];
 }
 
 export function emptyDesign(): GameDesign {
-  return { pitch: '', winCondition: '', loseCondition: '', rules: [], objectives: [], hud: emptyHud() };
+  return { pitch: '', winCondition: '', loseCondition: '', rules: [], objectives: [], hud: emptyHud(), render: defaultRenderSettings() };
 }
 
+// Asset library types (3D models & textures) live in ./assets.
+export * from './assets';
+
 export type PlayState = 'editing' | 'playing' | 'paused';
+
+/** Whether the user may edit the scene (move/adjust objects) in this play state.
+ *  Editable while 'editing' and while 'paused' (adjust the frozen game); locked
+ *  while 'playing' so the runtime keeps authority over object transforms. */
+export const isSceneEditable = (playState: PlayState): boolean => playState !== 'playing';
 
 /** Which transform gizmo is active in the viewport. */
 export type GizmoMode = 'select' | 'move' | 'rotate' | 'scale';

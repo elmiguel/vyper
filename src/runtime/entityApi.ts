@@ -7,6 +7,23 @@ import { V, vec } from './vector';
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
 
+/** Vertical speed (m/s) under which a character counts as "at rest" on a floor. */
+export const GROUND_REST_VY = 0.06;
+/** Consecutive at-rest frames required before grounded-by-rest is trusted — enough
+ *  to skip the brief vy≈0 apex of a jump (which lasts well under a frame). */
+export const GROUND_REST_FRAMES = 2;
+
+/**
+ * Advance a character's at-rest frame counter from its vertical velocity and decide
+ * whether it's grounded by resting. Pure (state in/out) so it's unit-testable without
+ * a physics world. A floor flush with the feet is invisible to a downward probe, so
+ * sustained at-rest motion is the reliable grounding signal there.
+ */
+export function restingGroundState(prevFrames: number, vy: number): { frames: number; grounded: boolean } {
+  const frames = Math.abs(vy) < GROUND_REST_VY ? prevFrames + 1 : 0;
+  return { frames, grounded: frames >= GROUND_REST_FRAMES };
+}
+
 /** Build the API object scripts receive for one entity. */
 export function makeEntityApi(entity: Entity, mesh: AbstractMesh | undefined, sceneManager: SceneManager) {
   const position = {} as { x: number; y: number; z: number };
@@ -30,6 +47,8 @@ export function makeEntityApi(entity: Entity, mesh: AbstractMesh | undefined, sc
   // Physics body for this entity (may be created lazily via usePhysics()).
   let body = sceneManager.getBody(entity.id);
   const tmp = new Vector3();
+  // Frames the body has been vertically at rest (for the grounded-by-rest fallback).
+  let restingFrames = 0;
 
   return {
     id: entity.id,
@@ -81,15 +100,34 @@ export function makeEntityApi(entity: Entity, mesh: AbstractMesh | undefined, sc
       const at = mesh ? mesh.getAbsolutePosition() : Vector3.ZeroReadOnly;
       body?.applyForce(new Vector3(x, y, z), at);
     },
-    /** True when something solid is directly beneath the body's feet. */
+    /** True when the character is standing on something (so it can jump). */
     isGrounded() {
       if (!mesh) return false;
       const bb = mesh.getBoundingInfo().boundingBox;
       const feetY = bb.minimumWorld.y;
       const c = mesh.getAbsolutePosition();
-      const from = new Vector3(c.x, feetY - 0.02, c.z);
-      const to = new Vector3(c.x, feetY - 0.32, c.z);
-      return sceneManager.physicsRaycastDistance(from, to) < Infinity;
+      // Probe from just below the feet downward (started below the body so it can't
+      // hit the character's own collider) — catches a floor with a small contact gap
+      // and the instant before landing.
+      const probeHit =
+        sceneManager.physicsRaycastDistance(
+          new Vector3(c.x, feetY - 0.02, c.z),
+          new Vector3(c.x, feetY - 0.4, c.z),
+        ) < Infinity;
+      // A floor flush with the feet (e.g. a thin ground plane) sits exactly at the
+      // contact point, where the probe grazes past it. Fall back to "vertical motion
+      // arrested for a couple of frames" — true standing on any floor, but the brief
+      // apex of a jump never lasts long enough to count (so no accidental mid-air jump).
+      let restingGrounded = false;
+      if (body) {
+        body.getLinearVelocityToRef(tmp);
+        const r = restingGroundState(restingFrames, tmp.y);
+        restingFrames = r.frames;
+        restingGrounded = r.grounded;
+      } else {
+        restingFrames = 0;
+      }
+      return probeHit || restingGrounded;
     },
     /** Cast a ray of `length` from just outside this entity in `dir`; true if it hits. */
     raycastHit(dir: { x: number; y: number; z: number }, length: number) {
@@ -114,6 +152,28 @@ export function makeEntityApi(entity: Entity, mesh: AbstractMesh | undefined, sc
     /** Stop all particle effects currently emitting from this entity. */
     stopEffect() {
       sceneManager.stopEffect(entity.id);
+    },
+
+    // ----- Skeletal animation (Modeling Studio rigs) -----
+    /** Play a keyframe clip on this entity's rig (by name/id, or the first clip). */
+    playClip(name?: string, loop = true) {
+      const rig = entity.rig;
+      const mesh = entity.mesh;
+      if (!rig || !mesh?.skin || !mesh.custom?.polyVerts || !mesh.custom.polygons) return;
+      const clip = name ? rig.clips.find((c) => c.name === name || c.id === name) : rig.clips[0];
+      if (!clip) return;
+      sceneManager.startClip(entity.id, {
+        clip,
+        skeleton: rig.skeleton,
+        skin: mesh.skin,
+        restPositions: mesh.custom.polyVerts,
+        polygons: mesh.custom.polygons,
+        loop,
+      });
+    },
+    /** Stop skeletal-clip playback on this entity. */
+    stopClip() {
+      sceneManager.stopClip(entity.id);
     },
   };
 }

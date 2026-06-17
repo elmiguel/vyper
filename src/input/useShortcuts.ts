@@ -102,6 +102,19 @@ export function useShortcuts() {
       if (isTypingTarget(e.target)) return;
       const lookup = lookups.get(store.keymap)!;
       const action = lookup.get(comboFromEvent(e));
+      // While the game is actively playing it owns the keyboard: gameplay keys
+      // (space = jump, WASD = move, …) must reach the running scripts, so editor
+      // shortcuts are suspended except `stop` (exit play). Without this, layouts
+      // that bind a gameplay key — e.g. Blender's playToggle on Space — would
+      // hijack it and pause the game instead of letting the player jump.
+      // `paused`/`editing` fall through so playToggle can resume from a pause.
+      if (store.playState === 'playing') {
+        if (action === 'stop') {
+          e.preventDefault();
+          dispatch('stop');
+        }
+        return;
+      }
       if (!action) return;
       e.preventDefault();
       dispatch(action);

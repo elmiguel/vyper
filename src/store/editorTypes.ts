@@ -1,6 +1,10 @@
 import type { StoreApi } from 'zustand';
 import type {
+  Asset,
+  AssetLibrary,
+  BrushParams,
   Clipboard,
+  CustomGeometry,
   EffectConfig,
   Entity,
   GameDesign,
@@ -9,21 +13,97 @@ import type {
   HudWidget,
   HudWidgetKind,
   LightKind,
+  MaterialConfig,
+  MaterialPreset,
   Objective,
   PlayState,
+  PrefabDef,
   PrimitiveKind,
+  RenderSettings,
+  RigSkeleton,
+  SkinData,
+  SculptBrushParams,
   Script,
   ScriptGraph,
   ScriptMode,
+  TerrainConfig,
   Vec3,
+  VolumeConfig,
 } from '@/types';
 import { type KeymapId } from '@/input/keymaps';
+import type { SerializedDockview } from 'dockview';
+
+/** Which mesh component the polygon Edit Mode tool is selecting/operating on. */
+export type MeshComponentMode = 'vertex' | 'edge' | 'face';
+
+/** An interactive Edit-Mode tool that takes over viewport pointer input. `select` is
+ *  the default (component pick/marquee/gizmo); `loopcut`/`knife` are modal tools. */
+export type MeshEditTool = 'select' | 'loopcut' | 'knife';
+
+/** A modeling operator invoked from the Modeling Studio tools panel. */
+export type MeshEditOpId =
+  | 'extrude'
+  | 'inset'
+  | 'subdivide'
+  | 'bevel'
+  | 'loopcut'
+  | 'delete'
+  | 'merge'
+  | 'triangulate'
+  | 'connect'
+  | 'bridge';
+
+/** Polygon Edit Mode state (the Modeling Studio). Editor-session/view state — geometry
+ *  commits flow through commitMeshGeometry, which records undo + persists. */
+export interface MeshEditState {
+  active: boolean;
+  entityId: string | null;
+  component: MeshComponentMode;
+  /** Selected component keys (vertex index, edge key, or face index — as strings). */
+  selection: string[];
+  /** Active free-form sculpt brush, or null when in component-select mode. */
+  sculpt: SculptBrushParams | null;
+  /** Active interactive tool (loop cut / knife), or `select` for normal editing. */
+  tool: MeshEditTool;
+}
+
+/** Rigging + animation session state (the Modeling Studio's Rig/Animate modes). The
+ *  RigController owns the live skeleton/preview; this mirrors intent + the playhead. */
+export interface RigEditState {
+  active: boolean;
+  entityId: string | null;
+  selectedBone: string | null;
+  /** Clip being edited/played (an id into the entity's rig.clips). */
+  activeClipId: string | null;
+  /** Timeline position in seconds. */
+  playhead: number;
+  playing: boolean;
+  /** Pose pushed to the controller while scrubbing/playing (Euler degrees per bone). */
+  scrubPose: Record<string, Vec3> | null;
+}
 
 /** Undo history is snapshot-based: each entry captures the editable scene state. */
 export interface Snapshot {
   entities: Entity[];
   scripts: Record<string, Script>;
   selectedId: string | null;
+}
+
+/** A user-saved named dock arrangement (built-in presets live in code, not here). */
+export interface CustomLayout {
+  id: string;
+  label: string;
+  layout: SerializedDockview;
+}
+
+/** Dockable-workspace state — persisted per-project in games.settings.workspace. */
+export interface Workspace {
+  /** Live working arrangement, restored on open. Null until first laid out. */
+  layout: SerializedDockview | null;
+  /** User-saved named layouts, shown alongside built-in presets. */
+  custom: CustomLayout[];
+  /** Active preset id (a built-in id or a custom id) — drives menu highlighting. */
+  activePresetId: string;
 }
 
 export interface EditorState {
@@ -52,10 +132,34 @@ export interface EditorState {
   selectedHudId: string | null;
   /** Whether the guided onboarding tour is running. */
   runTour: boolean;
+  /** Editor-session toggle: when false, camera post-processing (bloom, grain,
+   *  vignette, SSAO, shadows, IBL) is suppressed in the scene render so authoring
+   *  is on a clean view. Not persisted — the game keeps its design.render settings. */
+  editorEffects: boolean;
+  /** Browsable library of 3D models/textures (built-ins + uploads). */
+  assetLibrary: AssetLibrary;
+  /** Asset selected in the browser/viewer, or null. */
+  selectedAssetId: string | null;
+  /** Asset stashed by Copy, available to Paste. Editor-session only. */
+  assetClipboard: Asset | null;
+  /** Whether the asset browser overlay is open. */
+  showAssetBrowser: boolean;
+  /** Whether the asset viewer (model/texture/animation) modal is open. */
+  showAssetViewer: boolean;
   /** Bumped to ask the viewport to frame the selected object. */
   focusRequest: number;
   /** Active transform gizmo. */
   gizmoMode: GizmoMode;
+  /** Whether the terrain sculpt tool is active (left-drag sculpts the selected terrain). */
+  sculpting: boolean;
+  /** Maya-style viewport navigation (alt+drag orbit/pan/dolly) — on in the Modeler area. */
+  mayaNav: boolean;
+  /** Current sculpt brush settings. */
+  brush: BrushParams;
+  /** Polygon Edit Mode (Modeling Studio) state. */
+  meshEdit: MeshEditState;
+  /** Rigging + animation (Modeling Studio) state. */
+  rig: RigEditState;
   /** Active keyboard shortcut layout. */
   keymap: KeymapId;
   /** Game-play camera transform — editable, shown as a helper in the editor view. */
@@ -64,9 +168,20 @@ export interface EditorState {
   cameraRevision: number;
   /** Whether the editor grid is visible (editor-only; never in the game view). */
   gridVisible: boolean;
+  /** Modeling Studio toggle: when false, the solid surface preview is hidden in
+   *  Edit Mode so only the wireframe/component overlays show (editing still works). */
+  showSurfaces: boolean;
+  /** Whether transform gizmo drags snap to grid increments (viewport magnet toggle). */
+  snapToGrid: boolean;
   clipboard: Clipboard | null;
+  /** Reusable entity templates, game-level (persisted in games.settings.prefabs). */
+  prefabs: Record<string, PrefabDef>;
+  /** Reusable named materials, game-level (persisted in games.settings.materials). */
+  materialPresets: Record<string, MaterialPreset>;
   past: Snapshot[];
   future: Snapshot[];
+  /** Dockable workspace layout + saved presets (game-level, persisted in settings). */
+  workspace: Workspace;
 
   // selection
   select: (id: string | null) => void;
@@ -77,11 +192,58 @@ export interface EditorState {
   setGizmoMode: (mode: GizmoMode) => void;
   setKeymap: (id: KeymapId) => void;
   focusSelected: () => void;
+  /** Toggle the terrain sculpt tool. */
+  setSculpting: (v: boolean) => void;
+  /** Enable/disable Maya-style viewport navigation. */
+  setMayaNav: (v: boolean) => void;
+  /** Toggle grid snapping for transform gizmo drags. */
+  toggleSnapToGrid: () => void;
+  /** Patch the sculpt brush settings. */
+  setBrush: (patch: Partial<BrushParams>) => void;
+
+  // polygon Edit Mode (Modeling Studio)
+  /** Enter Edit Mode for an entity's mesh (vertex/edge/face editing). */
+  beginMeshEdit: (entityId: string) => void;
+  /** Exit Edit Mode, committing the final geometry. */
+  endMeshEdit: () => void;
+  /** Switch the active component type; clears the selection and any sculpt brush. */
+  setMeshComponent: (mode: MeshComponentMode) => void;
+  /** Set/clear the free-form sculpt brush (null returns to component-select mode). */
+  setMeshSculptBrush: (brush: SculptBrushParams | null) => void;
+  /** Activate an interactive tool (loop cut / knife), or `select` to return to editing. */
+  setMeshTool: (tool: MeshEditTool) => void;
+  /** Record the live component selection (called by the scene controller). */
+  setMeshSelection: (mode: MeshComponentMode, keys: string[]) => void;
+  /** Write edited geometry back to an entity (records undo; rebuilds when not active). */
+  commitMeshGeometry: (entityId: string, geo: CustomGeometry) => void;
+  /** Save baked geometry to the asset library as a reusable generated model; returns its id. */
+  saveMeshToLibrary: (name: string, geo: CustomGeometry) => string;
+
+  // rigging + animation (Modeling Studio)
+  /** Enter Rig Mode for an entity (build/pose a skeleton, paint weights). */
+  beginRig: (entityId: string) => void;
+  endRig: () => void;
+  /** Select a bone (drives the pose gizmo). */
+  selectRigBone: (boneId: string | null) => void;
+  /** Persist the controller's skeleton/skin/pose onto the entity. */
+  commitRig: (entityId: string, skeleton: RigSkeleton, skin: SkinData, pose: Record<string, Vec3>) => void;
+  /** Create a new (empty) animation clip on the rigged entity; returns its id. */
+  addClip: (name?: string) => string;
+  setActiveClip: (clipId: string | null) => void;
+  /** Key the current pose of every bone into the active clip at the playhead. */
+  keyframeBones: () => void;
+  /** Move the timeline playhead (seconds) and push the sampled pose to the viewport. */
+  setPlayhead: (time: number) => void;
+  setRigPlaying: (playing: boolean) => void;
 
   // editor objects
   updateGameCamera: (patch: Partial<{ position: Vec3; rotation: Vec3 }>) => void;
   resetGameCamera: () => void;
   toggleGrid: () => void;
+  /** Toggle camera post-processing in the editor scene view (see editorEffects). */
+  toggleEditorEffects: () => void;
+  /** Toggle the solid surface preview in Modeling Studio Edit Mode (see showSurfaces). */
+  toggleSurfaces: () => void;
 
   // history & clipboard
   record: (label: string) => void;
@@ -92,9 +254,19 @@ export interface EditorState {
 
   // entity ops
   addPrimitive: (kind: PrimitiveKind) => string;
+  /** Place a 3D model asset into the scene as a new entity (mesh kind 'model'). */
+  addModelEntity: (assetId: string) => string;
+  /** Add a sculptable terrain entity (mesh kind 'terrain'). */
+  addTerrain: () => string;
+  /** Patch a terrain entity's config (size/subdivisions/maxHeight/heights). */
+  updateTerrain: (id: string, patch: Partial<TerrainConfig>) => void;
+  /** Add a baked custom mesh (e.g. a CSG boolean result) as a new entity. */
+  addCustomMesh: (geo: CustomGeometry, name?: string) => string;
   /** Create a trigger volume (a sensor-flagged mesh of `kind`). */
   addVolume: (kind: PrimitiveKind) => string;
   setTrigger: (id: string, patch: Partial<NonNullable<Entity['trigger']>>) => void;
+  /** Patch a volume's boundary/preset config (seeds defaults if absent). */
+  updateVolume: (id: string, patch: Partial<VolumeConfig>) => void;
   /** Add a ready-to-play player: an entity with default movement controls attached. */
   addPlayer: () => string;
   addLight: (kind: LightKind) => string;
@@ -105,6 +277,8 @@ export interface EditorState {
   setEntityTag: (id: string, tag: string) => void;
   updateTransform: (id: string, patch: Partial<Entity['transform']>) => void;
   updateMesh: (id: string, patch: Partial<NonNullable<Entity['mesh']>>) => void;
+  /** Patch the selected mesh's PBR/standard material (seeds defaults if absent). */
+  updateMaterial: (id: string, patch: Partial<MaterialConfig>) => void;
   updateLight: (id: string, patch: Partial<NonNullable<Entity['light']>>) => void;
   setPhysics: (id: string, patch: Partial<NonNullable<Entity['physics']>>) => void;
 
@@ -140,6 +314,8 @@ export interface EditorState {
   addObjective: () => string;
   updateObjective: (id: string, patch: Partial<Objective>) => void;
   removeObjective: (id: string) => void;
+  /** Patch the scene-wide high-quality rendering settings (3D pipeline/shadows/IBL). */
+  updateRenderSettings: (patch: Partial<RenderSettings>) => void;
 
   // HUD editor (lives in design.hud, shared across scenes & game modes)
   setShowHud: (v: boolean) => void;
@@ -151,11 +327,58 @@ export interface EditorState {
   /** Move a widget in the draw order (z-order): 'front' draws last/on-top, 'back' first. */
   reorderHudWidget: (id: string, place: 'front' | 'back') => void;
 
+  // asset library (3D models / textures)
+  loadAssetManifest: () => Promise<void>;
+  uploadAssets: (files: File[]) => Promise<Asset[]>;
+  addAsset: (asset: Asset) => void;
+  updateAsset: (id: string, patch: Partial<Asset>) => void;
+  removeAsset: (id: string) => void;
+  /** Delete a library asset (removes it from the library; uploaded assets are also
+   *  deleted on the server). No-op for synthetic, model-derived texture entries. */
+  deleteAsset: (id: string) => void;
+  /** Stash a copy of an asset on the asset clipboard. */
+  copyAsset: (id: string) => void;
+  /** Paste the clipboard asset as a new library entry; returns its new id (or null). */
+  pasteAsset: () => string | null;
+  /** Copy + paste in one step: clone a library asset under a new id. */
+  duplicateAsset: (id: string) => string | null;
+  selectAsset: (id: string | null) => void;
+  setShowAssetBrowser: (v: boolean) => void;
+  setShowAssetViewer: (v: boolean) => void;
+
+  // prefabs (reusable entity templates, game-level)
+  /** Capture an entity (+ its behaviours) as a named prefab; returns the prefab id. */
+  savePrefab: (entityId: string, name: string) => string;
+  /** Stamp a fresh instance of a prefab into the scene; returns the new entity id. */
+  instantiatePrefab: (prefabId: string) => string;
+  removePrefab: (prefabId: string) => void;
+  hydratePrefabs: (prefabs: Record<string, PrefabDef>) => void;
+
+  // material presets (reusable named materials, game-level)
+  /** Save a material as a named, reusable preset; returns its id (reuses by name). */
+  saveMaterialPreset: (name: string, material: MaterialConfig) => string;
+  /** Replace an entity's mesh material with a preset's (a fresh clone). */
+  applyMaterialPreset: (entityId: string, presetId: string) => void;
+  removeMaterialPreset: (presetId: string) => void;
+  hydrateMaterialPresets: (presets: Record<string, MaterialPreset>) => void;
+
   // persistence (load a scene/scripts from the backend, or seed a new game)
   hydrateScene: (data: { entities: Entity[]; gameCamera?: { position: Vec3; rotation: Vec3 }; gridVisible?: boolean }) => void;
   hydrateDesign: (design: GameDesign) => void;
   hydrateScripts: (scripts: Record<string, Script>) => void;
   loadStarterScene: () => void;
+
+  // workspace layout (dockable panels + presets)
+  /** Persist the live dock arrangement (called on dock layout changes, throttled). */
+  setWorkspaceLayout: (layout: SerializedDockview) => void;
+  /** Mark which preset is active (built-in id or custom id) for menu highlighting. */
+  setActivePreset: (id: string) => void;
+  /** Save the current arrangement as a named custom layout; returns its id. */
+  saveCustomLayout: (label: string, layout: SerializedDockview) => string;
+  /** Delete a saved custom layout. */
+  deleteCustomLayout: (id: string) => void;
+  /** Load a workspace blob from the backend (or reset to defaults if absent). */
+  hydrateWorkspace: (workspace: Workspace) => void;
 }
 
 /** Zustand setter/getter handed to each slice factory. */

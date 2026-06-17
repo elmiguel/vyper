@@ -89,7 +89,11 @@ export const extraSpecs: Record<string, NodeSpec> = {
     execOuts: [],
     inputs: [],
     outputs: [],
-    fields: [{ id: 'moveSpeed', label: 'speed', kind: 'number', default: 5 }],
+    fields: [
+      { id: 'moveSpeed', label: 'speed', kind: 'number', default: 5 },
+      { id: 'jumpHeight', label: 'jump', kind: 'number', default: 2 },
+      { id: 'gravity', label: 'gravity', kind: 'number', default: 20 },
+    ],
   },
   'asset/firstPersonController': {
     kind: 'asset/firstPersonController',
@@ -191,6 +195,32 @@ export const extraSpecs: Record<string, NodeSpec> = {
     label: 'Stop Effects',
     category: 'fx',
     color: C.fx,
+    execIn: true,
+    execOuts: ['out'],
+    inputs: [],
+    outputs: [],
+  },
+
+  // ---------------- Skeletal animation (Modeling Studio rigs) ----------------
+  'world/playClip': {
+    kind: 'world/playClip',
+    label: 'Play Animation',
+    category: 'world',
+    color: C.world,
+    execIn: true,
+    execOuts: ['out'],
+    inputs: [],
+    outputs: [],
+    fields: [
+      { id: 'clip', label: 'clip', kind: 'string', default: '' },
+      { id: 'loop', label: 'loop', kind: 'bool', default: true },
+    ],
+  },
+  'world/stopClip': {
+    kind: 'world/stopClip',
+    label: 'Stop Animation',
+    category: 'world',
+    color: C.world,
     execIn: true,
     execOuts: ['out'],
     inputs: [],

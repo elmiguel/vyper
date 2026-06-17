@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { acquireEngine, getManager, releaseEngine } from './engine';
+import { SceneTools } from './SceneTools';
 import { useEditorStore } from '@/store/editorStore';
 import { GAME_CAMERA_ID } from './editorObjects';
 import { ContextMenu, type MenuItem } from '@/ui/ContextMenu';
 import type { LightKind } from '@/types';
-import { primsFor } from '@/types';
+import { primsFor, volumesFor } from '@/types';
 
 const LIGHTS: LightKind[] = ['hemispheric', 'point', 'directional'];
 
@@ -58,6 +59,9 @@ export function SceneViewport() {
     const manager = getManager();
     if (!manager) return;
     const store = useEditorStore.getState();
+    // An interactive Edit-Mode tool (loop cut / knife) owns right-click (e.g. to finish a
+    // knife path), so don't pop the viewport context menu over it.
+    if (store.meshEdit.active && store.meshEdit.tool !== 'select') return;
     const id = manager.pickAtPointer();
     store.select(id);
 
@@ -95,7 +99,12 @@ export function SceneViewport() {
           label: 'Add Light',
           submenu: LIGHTS.map((l) => ({ label: l, onClick: () => store.addLight(l) })),
         });
+        items.push({ label: 'Add Terrain', onClick: () => store.addTerrain() });
       }
+      items.push({
+        label: 'Add Volume',
+        submenu: volumesFor(store.mode).map((k) => ({ label: k, onClick: () => store.addVolume(k) })),
+      });
       items.push(
         { label: 'Frame All', separator: true, onClick: () => { store.select(null); store.focusSelected(); } },
         { label: 'Show Grid', checked: store.gridVisible, onClick: () => store.toggleGrid() },
@@ -107,6 +116,7 @@ export function SceneViewport() {
   return (
     <div className="viewport-wrap" ref={wrapRef} onContextMenu={onContextMenu} data-tour="scene">
       <canvas ref={canvasRef} className="babylon-canvas" />
+      <SceneTools />
       <div className="viewport-badge">Scene · editor camera · {mode === '2d' ? '2D' : '3D'}</div>
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>

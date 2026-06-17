@@ -1,0 +1,222 @@
+[
+  {
+    "id": "aerial_grass_rock_diff_1k",
+    "name": "aerial_grass_rock_diff_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "aerial_grass_rock_diff_1k.jpg"
+    ]
+  },
+  {
+    "id": "aerial_grass_rock_nor_gl_1k",
+    "name": "aerial_grass_rock_nor_gl_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "aerial_grass_rock_nor_gl_1k.jpg"
+    ]
+  },
+  {
+    "id": "aerial_grass_rock_rough_1k",
+    "name": "aerial_grass_rock_rough_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "aerial_grass_rock_rough_1k.jpg"
+    ]
+  },
+  {
+    "id": "aerial_grass_rock_ao_1k",
+    "name": "aerial_grass_rock_ao_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "aerial_grass_rock_ao_1k.jpg"
+    ]
+  },
+  {
+    "id": "Grass005_1K-JPG_AmbientOcclusion",
+    "name": "Grass005_1K-JPG_AmbientOcclusion.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "Grass005_1K-JPG_AmbientOcclusion.jpg"
+    ]
+  },
+  {
+    "id": "Grass005_1K-JPG_Color",
+    "name": "Grass005_1K-JPG_Color.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "Grass005_1K-JPG_Color.jpg"
+    ]
+  },
+  {
+    "id": "Grass005_1K-JPG_NormalGL",
+    "name": "Grass005_1K-JPG_NormalGL.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "Grass005_1K-JPG_NormalGL.jpg"
+    ]
+  },
+  {
+    "id": "Grass005_1K-JPG_Roughness",
+    "name": "Grass005_1K-JPG_Roughness.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "Grass005_1K-JPG_Roughness.jpg"
+    ]
+  },
+  {
+    "id": "bark_brown_01_diff_1k",
+    "name": "bark_brown_01_diff_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "bark_brown_01_diff_1k.jpg"
+    ]
+  },
+  {
+    "id": "bark_brown_01_nor_gl_1k",
+    "name": "bark_brown_01_nor_gl_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "bark_brown_01_nor_gl_1k.jpg"
+    ]
+  },
+  {
+    "id": "bark_brown_01_rough_1k",
+    "name": "bark_brown_01_rough_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "bark_brown_01_rough_1k.jpg"
+    ]
+  },
+  {
+    "id": "bark_brown_01_ao_1k",
+    "name": "bark_brown_01_ao_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "bark_brown_01_ao_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_mud_leaves_01_diff_1k",
+    "name": "brown_mud_leaves_01_diff_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_mud_leaves_01_diff_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_mud_leaves_01_nor_gl_1k",
+    "name": "brown_mud_leaves_01_nor_gl_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_mud_leaves_01_nor_gl_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_mud_leaves_01_rough_1k",
+    "name": "brown_mud_leaves_01_rough_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_mud_leaves_01_rough_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_mud_leaves_01_ao_1k",
+    "name": "brown_mud_leaves_01_ao_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_mud_leaves_01_ao_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_mud_03_diff_1k",
+    "name": "brown_mud_03_diff_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_mud_03_diff_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_mud_03_nor_gl_1k",
+    "name": "brown_mud_03_nor_gl_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_mud_03_nor_gl_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_mud_03_rough_1k",
+    "name": "brown_mud_03_rough_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_mud_03_rough_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_mud_03_ao_1k",
+    "name": "brown_mud_03_ao_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_mud_03_ao_1k.jpg"
+    ]
+  }
+]

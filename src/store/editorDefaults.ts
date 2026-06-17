@@ -14,14 +14,41 @@ export function uniqueName(base: string): string {
   return n === 1 ? base : `${base} ${n}`;
 }
 
+/**
+ * Reassign a fresh id to any entity whose id already appeared, so a scene never
+ * has two entities sharing an id. Repairs scenes saved by older builds where
+ * duplicate/paste could clone the source id (which rendered + selected as one
+ * object). No-op for clean scenes; returns the same array reference unchanged so
+ * it doesn't churn React/Babylon when there's nothing to fix.
+ */
+export function dedupeEntityIds(entities: Entity[]): Entity[] {
+  const seen = new Set<string>();
+  let changed = false;
+  const out = entities.map((e) => {
+    if (!seen.has(e.id)) {
+      seen.add(e.id);
+      return e;
+    }
+    changed = true;
+    const id = nanoid(8);
+    seen.add(id);
+    return { ...e, id };
+  });
+  return changed ? out : entities;
+}
+
 export function makeEntity(partial: Partial<Entity> & Pick<Entity, 'name'>): Entity {
   return {
-    id: nanoid(8),
     parentId: null,
     transform: { position: v3(), rotation: v3(), scale: v3(1, 1, 1) },
     scriptIds: [],
     props: {},
     ...partial,
+    // `id` is assigned last so it's ALWAYS fresh — a caller spreading a cloned
+    // entity (duplicate / paste / prefab) can't accidentally carry the source id,
+    // which would collide to a single tracked mesh. makeEntity is only for new
+    // entities; loaded scenes keep their stored ids without going through here.
+    id: nanoid(8),
   };
 }
 

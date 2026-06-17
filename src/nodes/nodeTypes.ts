@@ -10,7 +10,7 @@ import type { EngineNodeData } from './nodeSpec.types';
 export const NODE_SPECS: Record<string, NodeSpec> = { ...coreSpecs, ...extraSpecs };
 
 export const NODE_PALETTE: { category: NodeCategory; items: string[] }[] = [
-  { category: 'event', items: ['event/start', 'event/update'] },
+  { category: 'event', items: ['event/start', 'event/update', 'event/keyDown'] },
   { category: 'trigger', items: ['trigger/onEnter', 'trigger/onExit', 'trigger/onStay'] },
   {
     category: 'action',
@@ -54,6 +54,8 @@ export const NODE_PALETTE: { category: NodeCategory; items: string[] }[] = [
       'world/setVelocity',
       'world/applyImpulse',
       'world/playEffect',
+      'world/playClip',
+      'world/stopClip',
     ],
   },
   {

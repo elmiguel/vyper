@@ -2,10 +2,16 @@ import { useEffect, useState } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { getRuntime } from '@/babylon/engine';
 import { GAME_CAMERA_ID } from '@/babylon/editorObjects';
-import type { Vec3 } from '@/types';
-import { Plus, Power, RotateCcw, Sparkles } from 'lucide-react';
+import { physicsModeOf, type Vec3 } from '@/types';
+import { Plus, Power, RotateCcw, Sparkles, Boxes } from 'lucide-react';
 import { NumberInput } from '@/ui/NumberInput';
 import { EFFECT_PRESETS, presetsForMode } from '@/effects/presets';
+import { RenderSettings } from './RenderSettings';
+import { MaterialEditor } from './MaterialEditor';
+import { TerrainPanel } from './TerrainPanel';
+import { ModelingPanel } from './ModelingPanel';
+import { PrefabsPanel } from './PrefabsPanel';
+import { VolumePanel } from './VolumePanel';
 
 // Trim float noise (e.g. live-play transforms) to 3 decimals when not editing.
 const trim3 = (v: number) => String(Number(v.toFixed(3)));
@@ -41,6 +47,7 @@ export function Inspector() {
   const updateGameCamera = useEditorStore((s) => s.updateGameCamera);
   const resetGameCamera = useEditorStore((s) => s.resetGameCamera);
   const scripts = useEditorStore((s) => s.scripts);
+  const savePrefab = useEditorStore((s) => s.savePrefab);
   const [, tick] = useState(0);
   const [newProp, setNewProp] = useState('');
   const [addingFx, setAddingFx] = useState(false);
@@ -83,7 +90,11 @@ export function Inspector() {
     return (
       <div className="panel inspector" data-tour="inspector">
         <div className="panel-head">Inspector</div>
-        <div className="empty-hint">Select an object to inspect it.</div>
+        <div className="panel-scroll">
+          <div className="empty-hint">Select an object to inspect it.</div>
+          <PrefabsPanel />
+          <RenderSettings />
+        </div>
       </div>
     );
   }
@@ -129,9 +140,20 @@ export function Inspector() {
               <span className="field-label">Color</span>
               <input type="color" value={entity.mesh.color} onChange={(e) => updateMesh(entity.id, { color: e.target.value })} />
             </div>
+            {entity.mesh.kind !== 'model' && <MaterialEditor entity={entity} disabled={playing} />}
+            {entity.mesh.kind === 'terrain' && <TerrainPanel entity={entity} disabled={playing} />}
+            {entity.mesh.kind !== 'model' && entity.mesh.kind !== 'terrain' && <ModelingPanel entity={entity} disabled={playing} />}
             <label className="field check">
               <input type="checkbox" checked={entity.mesh.visible} onChange={(e) => updateMesh(entity.id, { visible: e.target.checked })} />
               Visible
+            </label>
+            <label className="field check">
+              <input
+                type="checkbox"
+                checked={entity.mesh.collision !== false}
+                onChange={(e) => updateMesh(entity.id, { collision: e.target.checked })}
+              />
+              Collision
             </label>
           </section>
         )}
@@ -155,36 +177,46 @@ export function Inspector() {
           </section>
         )}
 
-        {entity.mesh && (
+        {entity.mesh && (() => {
+          const mode = physicsModeOf(entity.physics);
+          return (
           <section>
             <h4>Physics</h4>
-            <label className="field check">
+            <label className="field check" title="Static collider — blocks the player and never moves. Use for walls, floating platforms, and other static obstacles.">
               <input
                 type="checkbox"
-                checked={!!entity.physics?.enabled}
+                checked={mode === 'solid'}
                 disabled={playing}
-                onChange={(e) => setPhysics(entity.id, { enabled: e.target.checked })}
+                onChange={(e) => setPhysics(entity.id, e.target.checked ? { enabled: true, type: 'static' } : { enabled: false })}
+              />
+              Solid (static collider)
+            </label>
+            <label className="field check" title="Dynamic rigid body — simulated by physics, falls and reacts to forces and collisions.">
+              <input
+                type="checkbox"
+                checked={mode === 'rigid'}
+                disabled={playing}
+                onChange={(e) => setPhysics(entity.id, e.target.checked ? { enabled: true, type: 'dynamic' } : { enabled: false })}
               />
               Rigid body
             </label>
-            {entity.physics?.enabled && (
+            {mode === 'rigid' && (
               <>
                 <div className="field">
                   <span className="field-label">Type</span>
                   <select
-                    value={entity.physics.type}
+                    value={entity.physics!.type}
                     disabled={playing}
                     onChange={(e) => setPhysics(entity.id, { type: e.target.value as NonNullable<typeof entity.physics>['type'] })}
                   >
                     <option value="dynamic">dynamic</option>
-                    <option value="static">static</option>
                     <option value="kinematic">kinematic</option>
                   </select>
                 </div>
                 <div className="field">
                   <span className="field-label">Shape</span>
                   <select
-                    value={entity.physics.shape}
+                    value={entity.physics!.shape}
                     disabled={playing}
                     onChange={(e) => setPhysics(entity.id, { shape: e.target.value as NonNullable<typeof entity.physics>['shape'] })}
                   >
@@ -195,41 +227,40 @@ export function Inspector() {
                     <option value="cylinder">cylinder</option>
                   </select>
                 </div>
-                {entity.physics.type !== 'static' && (
-                  <div className="field">
-                    <span className="field-label">Mass</span>
-                    <NumberInput
-                      step={0.1}
-                      value={entity.physics.mass}
-                      disabled={playing}
-                      onChange={(n) => setPhysics(entity.id, { mass: Math.max(0, n) })}
-                    />
-                  </div>
-                )}
+                <div className="field">
+                  <span className="field-label">Mass</span>
+                  <NumberInput
+                    step={0.1}
+                    value={entity.physics!.mass}
+                    disabled={playing}
+                    onChange={(n) => setPhysics(entity.id, { mass: Math.max(0, n) })}
+                  />
+                </div>
                 <div className="field">
                   <span className="field-label">Bounce</span>
                   <input
                     type="range" min={0} max={1} step={0.05}
-                    value={entity.physics.restitution}
+                    value={entity.physics!.restitution}
                     disabled={playing}
                     onChange={(e) => setPhysics(entity.id, { restitution: parseFloat(e.target.value) })}
                   />
-                  <span className="field-val">{entity.physics.restitution.toFixed(2)}</span>
+                  <span className="field-val">{entity.physics!.restitution.toFixed(2)}</span>
                 </div>
                 <div className="field">
                   <span className="field-label">Friction</span>
                   <input
                     type="range" min={0} max={1} step={0.05}
-                    value={entity.physics.friction}
+                    value={entity.physics!.friction}
                     disabled={playing}
                     onChange={(e) => setPhysics(entity.id, { friction: parseFloat(e.target.value) })}
                   />
-                  <span className="field-val">{entity.physics.friction.toFixed(2)}</span>
+                  <span className="field-val">{entity.physics!.friction.toFixed(2)}</span>
                 </div>
               </>
             )}
           </section>
-        )}
+          );
+        })()}
 
         <section>
           <h4>Properties</h4>
@@ -296,6 +327,7 @@ export function Inspector() {
                     }
                   />
                 </div>
+                <VolumePanel entity={entity} disabled={playing} />
                 <div className="empty-hint inline">
                   Add a behaviour with an <em>On Trigger Enter/Exit/Stay</em> node to react. Hidden in the game view.
                 </div>
@@ -362,6 +394,13 @@ export function Inspector() {
           })}
           <button className="add-script-btn" onClick={() => addScript(entity.id)}>
             <Plus size={13} /> Add Behaviour
+          </button>
+        </section>
+
+        <section>
+          <h4>Prefab</h4>
+          <button className="add-script-btn" disabled={playing} onClick={() => savePrefab(entity.id, entity.name)}>
+            <Boxes size={13} /> Save as Prefab
           </button>
         </section>
       </div>

@@ -36,6 +36,20 @@ export const coreSpecs: Record<string, NodeSpec> = {
     inputs: [],
     outputs: [{ id: 'dt', label: 'Δ sec', kind: 'number' }],
   },
+  // Edge-triggered keyboard event: fires its exec output once, the frame `key`
+  // is pressed (not every frame it's held). Drive a Branch/Log/etc. directly —
+  // no On Update + Key Down (value) polling needed.
+  'event/keyDown': {
+    kind: 'event/keyDown',
+    label: 'On Key Down',
+    category: 'event',
+    color: C.event,
+    execIn: false,
+    execOuts: ['out'],
+    inputs: [],
+    outputs: [],
+    fields: [{ id: 'key', label: 'key', kind: 'string', default: 'space', editor: 'keycapture' }],
+  },
   'action/log': {
     kind: 'action/log',
     label: 'Log',

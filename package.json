@@ -3,18 +3,54 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently -n server,client -c magenta,cyan \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "vite",
     "dev:server": "tsx watch server/index.ts",
+    "dev:desktop": "vite build && node scripts/build-electron.mjs && electron .",
+    "dev:desktop:hot": "concurrently -k -n vite,electron -c cyan,magenta \"vite\" \"node scripts/build-electron.mjs && VITE_DEV_SERVER_URL=http://localhost:5173 electron .\"",
+    "assets:manifest": "node scripts/gen-asset-manifest.mjs",
+    "predev": "npm run assets:manifest",
+    "prebuild": "npm run assets:manifest",
     "build": "tsc -b && vite build",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build:desktop": "vite build && node scripts/build-electron.mjs && electron-builder",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -b --noEmit",
     "typecheck:server": "tsc -p tsconfig.server.json",
+    "typecheck:electron": "tsc -p tsconfig.electron.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
+  },
+  "build": {
+    "appId": "com.vyper.editor",
+    "productName": "Vyper",
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/@electric-sql/pglite/**"
+    ],
+    "npmRebuild": false,
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "target": "dmg",
+      "identity": null
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "dependencies": {
     "@babylonjs/core": "^7.34.0",
@@ -22,19 +58,22 @@
     "@babylonjs/inspector": "^7.34.0",
     "@babylonjs/loaders": "^7.34.0",
     "@babylonjs/materials": "^7.34.0",
+    "@electric-sql/pglite": "^0.5.2",
     "@monaco-editor/react": "^4.6.0",
     "@xyflow/react": "^12.3.5",
     "cors": "^2.8.6",
+    "dockview": "^6.6.1",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
+    "fflate": "^0.8.3",
     "lucide-react": "^0.460.0",
+    "multer": "^2.2.0",
     "nanoid": "^5.0.9",
     "pg": "^8.21.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-joyride": "^2.9.3",
-    "react-resizable-panels": "^2.1.7",
     "zustand": "^5.0.1"
   },
   "devDependencies": {
@@ -43,6 +82,7 @@
     "@testing-library/user-event": "^14.6.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/multer": "^2.1.0",
     "@types/node": "^22.19.21",
     "@types/pg": "^8.20.0",
     "@types/react": "^18.3.12",
@@ -50,6 +90,9 @@
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^10.0.3",
     "drizzle-kit": "^0.31.10",
+    "electron": "^42.4.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.1",
     "jsdom": "^29.1.1",
     "tsx": "^4.22.4",
     "typescript": "^5.6.3",

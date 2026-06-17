@@ -45,6 +45,13 @@ const GROUPS: Group[] = [
   },
 ];
 
+/** Fixed mouse/key scene-camera gestures (not part of the rebindable keymap). */
+const NAV_ROWS: { label: string; combos: string[][] }[] = [
+  { label: 'Orbit', combos: [['Left-drag']] },
+  { label: 'Pan', combos: [['Middle-drag'], ['Space', 'Left-drag']] },
+  { label: 'Zoom', combos: [['Wheel']] },
+];
+
 function Chips({ combos }: { combos: string[][] }) {
   return (
     <span className="sc-chips">
@@ -103,6 +110,15 @@ export function ShortcutsOverlay() {
               ))}
             </section>
           ))}
+          <section className="sc-group">
+            <h4>Scene Navigation</h4>
+            {NAV_ROWS.map((r) => (
+              <div className="sc-row" key={r.label}>
+                <span className="sc-label">{r.label}</span>
+                <Chips combos={r.combos} />
+              </div>
+            ))}
+          </section>
         </div>
 
         <footer className="sc-foot">

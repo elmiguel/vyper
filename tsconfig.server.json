@@ -11,5 +11,6 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["server"]
+  "include": ["server"],
+  "exclude": ["server/**/*.test.ts", "server/**/*.spec.ts"]
 }

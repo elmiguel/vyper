@@ -1,4 +1,4 @@
-import { Vector3 } from '@babylonjs/core/Maths/math';
+import { Vector3, Quaternion } from '@babylonjs/core/Maths/math';
 import HavokPhysics from '@babylonjs/havok';
 import { HavokPlugin } from '@babylonjs/core/Physics/v2/Plugins/havokPlugin';
 import { PhysicsAggregate } from '@babylonjs/core/Physics/v2/physicsAggregate';
@@ -9,7 +9,7 @@ import type { PhysicsBody } from '@babylonjs/core/Physics/v2/physicsBody';
 import '@babylonjs/core/Physics/v2/physicsEngineComponent';
 import type { Scene } from '@babylonjs/core/scene';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import type { Entity, GameMode } from '@/types';
+import { type Entity, type GameMode, isMeshCollidable } from '@/types';
 
 /** Accessors PhysicsManager needs from its owning SceneManager. */
 export interface PhysicsContext {
@@ -27,6 +27,10 @@ export class PhysicsManager {
   /** True between enablePhysics() and disablePhysics() (i.e. during Play). */
   physicsActive = false;
   private rayResult = new PhysicsRaycastResult();
+  /** The engine timestep saved when frozen by Pause, restored on resume. */
+  private savedTimeStep: number | null = null;
+  /** Default Havok step (seconds). Restored on Play and resume-from-pause. */
+  private static readonly DEFAULT_TIMESTEP = 1 / 60;
 
   constructor(private ctx: PhysicsContext) {}
 
@@ -51,24 +55,66 @@ export class PhysicsManager {
     if (!this.ctx.scene.getPhysicsEngine()) {
       this.ctx.scene.enablePhysics(new Vector3(0, -9.81, 0), plugin);
     }
+    // The engine persists across Stop/Play (see disablePhysics), so normalize the
+    // timestep here — a previous Pause may have frozen it at 0, which would leave
+    // the simulation silently stopped on the next Play.
+    this.savedTimeStep = null;
+    this.ctx.scene.getPhysicsEngine()?.setTimeStep(PhysicsManager.DEFAULT_TIMESTEP);
     this.physicsActive = true;
     for (const e of entities) {
-      if (e.physics?.enabled && e.mesh) {
+      // A mesh with collision toggled off gets no collider (visible or not).
+      if (!e.mesh || !isMeshCollidable(e.mesh)) continue;
+      if (e.physics?.enabled) {
         this.ensureBody(e.id, e.physics);
-      } else if (e.mesh && (e.mesh.kind === 'ground' || e.mesh.kind === 'plane')) {
+      } else if (e.mesh.kind === 'ground' || e.mesh.kind === 'plane') {
         // Floors get a static collider automatically so character controllers
         // (which create their own dynamic body at runtime) have something to
         // stand on without the user wiring up physics by hand.
         this.ensureBody(e.id, { type: 'static', shape: 'box' });
+      } else if (e.mesh.kind === 'terrain') {
+        // Terrain uses a static mesh collider so players walk its sculpted surface.
+        this.ensureBody(e.id, { type: 'static', shape: 'mesh' });
       }
     }
   }
 
-  /** Dispose all bodies and turn physics off. Call on Stop. */
+  /**
+   * Freeze/unfreeze the simulation for Pause by zeroing the engine timestep.
+   * On unfreeze, snap every body to its mesh so objects nudged while paused stay
+   * put (bodies don't track mesh moves by default — disablePreStep is on).
+   */
+  setPaused(paused: boolean): void {
+    const engine = this.ctx.scene.getPhysicsEngine();
+    if (!engine) return;
+    if (paused) {
+      if (this.savedTimeStep === null) this.savedTimeStep = engine.getTimeStep();
+      engine.setTimeStep(0);
+    } else {
+      engine.setTimeStep(this.savedTimeStep ?? PhysicsManager.DEFAULT_TIMESTEP);
+      this.savedTimeStep = null;
+      for (const [id, agg] of this.aggregates) {
+        const mesh = this.ctx.getMesh(id);
+        if (!mesh) continue;
+        const rot = mesh.rotationQuaternion ?? Quaternion.FromEulerVector(mesh.rotation);
+        agg.body.setTargetTransform(mesh.absolutePosition, rot);
+      }
+    }
+  }
+
+  /**
+   * Dispose all bodies and turn physics off. Call on Stop.
+   *
+   * The Havok engine and its plugin are intentionally LEFT ALIVE.
+   * `scene.disablePhysicsEngine()` would dispose the plugin's WASM world, and the
+   * cached HavokPlugin can't be reused — so the next Play would call
+   * `scene.enablePhysics` with a dead plugin and every body would throw
+   * "No Physics Engine available." With all bodies removed the idle engine
+   * simulates nothing; it's torn down for real when the scene is disposed.
+   */
   disablePhysics(): void {
+    this.savedTimeStep = null;
     for (const agg of this.aggregates.values()) agg.dispose();
     this.aggregates.clear();
-    if (this.ctx.scene.getPhysicsEngine()) this.ctx.scene.disablePhysicsEngine();
     this.physicsActive = false;
   }
 
@@ -83,6 +129,9 @@ export class PhysicsManager {
       case 'cylinder':
       case 'cone':
         return PhysicsShapeType.CYLINDER;
+      case 'mesh':
+      case 'terrain':
+        return PhysicsShapeType.MESH;
       default:
         return PhysicsShapeType.BOX;
     }
@@ -104,7 +153,13 @@ export class PhysicsManager {
     } = {},
   ): PhysicsBody | null {
     const existing = this.aggregates.get(entityId);
-    if (existing) return existing.body;
+    if (existing) {
+      // A controller asking for 'character' upgrades whatever body is already
+      // there (e.g. a rigid body the user added in the Inspector) to upright +
+      // non-spinning — otherwise it keeps full rotational inertia and tumbles.
+      if (opts.type === 'character') this.makeUprightCharacter(existing.body);
+      return existing.body;
+    }
     const mesh = this.ctx.getMesh(entityId);
     if (!mesh || !this.physicsActive) return null;
 
@@ -120,13 +175,28 @@ export class PhysicsManager {
     );
     if (type === 'static') agg.body.setMotionType(PhysicsMotionType.STATIC);
     if (type === 'kinematic') agg.body.setMotionType(PhysicsMotionType.ANIMATED);
-    if (type === 'character') {
-      // Zero rotational inertia + heavy angular damping keeps the capsule upright.
-      agg.body.setMassProperties({ inertia: new Vector3(0, 0, 0) });
-      agg.body.setAngularDamping(100);
-    }
+    if (type === 'character') this.makeUprightCharacter(agg.body);
     this.aggregates.set(entityId, agg);
     return agg.body;
+  }
+
+  /** Make a body behave as an upright character controller: dynamic motion with
+   *  zero rotational inertia + heavy angular damping, so contacts/impulses move
+   *  it but never tip or spin it. Idempotent — safe to re-apply to any body.
+   *
+   *  Crucially, the existing mass is preserved: setMassProperties replaces the
+   *  whole mass-properties struct, so passing only `inertia` would reset mass to
+   *  0 — making the body immovable (impulses, i.e. jumps, would do nothing). */
+  private makeUprightCharacter(body: PhysicsBody): void {
+    body.setMotionType(PhysicsMotionType.DYNAMIC);
+    const mass = body.getMassProperties().mass;
+    body.setMassProperties({ mass: mass && mass > 0 ? mass : 1, inertia: new Vector3(0, 0, 0) });
+    body.setAngularDamping(100);
+    // No linear damping: the controller drives horizontal velocity directly, and
+    // any vertical damping makes the jump apex hang ("levitate"). Gravity alone
+    // should shape the arc → a crisp, predictable jump.
+    body.setLinearDamping(0);
+    body.setAngularVelocity(new Vector3(0, 0, 0));
   }
 
   getBody(entityId: string): PhysicsBody | null {

@@ -14,6 +14,8 @@ export interface MenuItem {
   /** Renders a thin divider above this item. */
   separator?: boolean;
   disabled?: boolean;
+  /** Right-aligned keyboard-shortcut hint (e.g. "⌘D", "Del"). */
+  shortcut?: string;
 }
 
 const MENU_W = 180; // keep in sync with .node-ctx-menu min-width for clamping
@@ -47,6 +49,7 @@ function MenuList({ items, onClose }: { items: MenuItem[]; onClose: () => void }
             >
               {item.checked != null && <span className="ctx-check">{item.checked ? '✓' : ''}</span>}
               <span className="ctx-label">{item.label}</span>
+              {item.shortcut && <span className="ctx-shortcut">{item.shortcut}</span>}
               {hasSub && <span className="ctx-caret">▸</span>}
             </button>
             {hasSub && openSub === i && (
@@ -95,13 +98,17 @@ export function ContextMenu({
       if (!ref.current?.contains(e.target as Node)) onClose();
     };
     window.addEventListener('keydown', onKey);
-    // Capture phase so a click anywhere (incl. the canvas) closes us first.
+    // Capture phase so a click anywhere (incl. the canvas) closes us first. Listen for
+    // pointerdown too: Babylon viewports consume pointer events on their canvas and the
+    // compatibility `mousedown` doesn't reliably reach window, but `pointerdown` always does.
     window.addEventListener('mousedown', onDown, true);
+    window.addEventListener('pointerdown', onDown, true);
     window.addEventListener('scroll', close, true);
     window.addEventListener('resize', close);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('mousedown', onDown, true);
+      window.removeEventListener('pointerdown', onDown, true);
       window.removeEventListener('scroll', close, true);
       window.removeEventListener('resize', close);
     };

@@ -21,16 +21,17 @@ export function ConsolePanel() {
     if (el) el.scrollTop = el.scrollHeight;
   }, [logs]);
 
-  // Live engine stats — part of the live-debugging surface.
+  // Live engine stats — sampled a few times a second (not every frame). FPS/mesh
+  // counts don't need 60 Hz, and a per-frame React re-render of this panel was
+  // pure overhead. Only writes state when a value actually changed.
   useEffect(() => {
-    let raf = 0;
-    const loop = () => {
+    const id = setInterval(() => {
       const m = getManager();
-      if (m) setStats({ fps: Math.round(m.engine.getFps()), meshes: m.scene.meshes.length });
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+      if (!m) return;
+      const next = { fps: Math.round(m.engine.getFps()), meshes: m.scene.meshes.length };
+      setStats((prev) => (prev.fps === next.fps && prev.meshes === next.meshes ? prev : next));
+    }, 250);
+    return () => clearInterval(id);
   }, []);
 
   const visible = logs.filter((l) => filter[l.level]);

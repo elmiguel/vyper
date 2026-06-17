@@ -78,8 +78,11 @@ export function createHistorySlice(set: StoreSet, get: StoreGet): HistorySlice {
           return nid;
         });
         const pos = clip.entity.transform.position;
+        // Drop the clipboard entity's id so makeEntity assigns a fresh one — keeping
+        // it would collide with the original (or a prior paste) and render as one mesh.
+        const { id: _clipId, ...rest } = structuredClone(clip.entity);
         const copy = makeEntity({
-          ...structuredClone(clip.entity),
+          ...rest,
           name: uniqueName(clip.entity.name),
           scriptIds: newScriptIds,
           transform: {
