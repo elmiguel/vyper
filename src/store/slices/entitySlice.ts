@@ -205,12 +205,17 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
         const src = s.entities.find((e) => e.id === id);
         if (!src) return s;
         const scripts = { ...s.scripts };
-        const newScriptIds = src.scriptIds.map((sid) => {
-          const orig = s.scripts[sid];
-          const nid = nanoid(8);
-          scripts[nid] = { ...orig, id: nid, graph: structuredClone(orig.graph) };
-          return nid;
-        });
+        // Skip scriptIds with no matching script: a stale reference (e.g. left over from
+        // undo/redo or partial hydration) would otherwise throw on orig.graph. Mirrors the
+        // filter(Boolean) guard used when reading scripts in prefabSlice/historySlice.
+        const newScriptIds = src.scriptIds
+          .map((sid) => s.scripts[sid])
+          .filter(Boolean)
+          .map((orig) => {
+            const nid = nanoid(8);
+            scripts[nid] = { ...orig, id: nid, graph: structuredClone(orig.graph) };
+            return nid;
+          });
         // Strip the source id so makeEntity mints a fresh one — otherwise the clone
         // keeps src.id (makeEntity spreads the partial last) and the two entities
         // collide to one tracked mesh. Offset slightly so the copy is visibly separate.
