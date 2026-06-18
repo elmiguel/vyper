@@ -56,7 +56,7 @@ export function ModelerInspector() {
   const hasSelection = bounds.count > 0;
 
   return (
-    <div className="panel modeler-inspector">
+    <div className="panel inspector modeler-inspector">
       <div className="panel-head">Inspector</div>
       <div className="panel-scroll">
         <div className="studio-section">

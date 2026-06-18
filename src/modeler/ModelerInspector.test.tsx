@@ -28,6 +28,11 @@ describe('ModelerInspector', () => {
     expect(screen.getByText('Material', { selector: '.studio-label' })).toBeInTheDocument();
   });
 
+  it('carries the .inspector class so shared form theming (selects/inputs) applies', () => {
+    const { container } = render(<ModelerInspector />);
+    expect(container.querySelector('.panel.inspector')).not.toBeNull();
+  });
+
   it('shows transform fields and the active-target readout when something is selected', () => {
     render(<ModelerInspector />);
     expect(screen.getByText('Position')).toBeInTheDocument();
