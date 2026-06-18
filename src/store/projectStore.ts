@@ -35,7 +35,7 @@ export function designOf(settings: Record<string, unknown> | undefined): GameDes
   const base = emptyDesign();
   const d = settings?.design as Partial<GameDesign> | undefined;
   if (!d) return base;
-  return { ...base, ...d, render: { ...base.render, ...(d.render ?? {}) } };
+  return { ...base, ...d, render: { ...base.render, ...(d.render ?? {}) }, studioEnv: { ...base.studioEnv, ...(d.studioEnv ?? {}) } };
 }
 
 /** Read the prefab library off a game's settings blob (defaults to empty). */
