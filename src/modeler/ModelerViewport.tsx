@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ModelerScene } from './ModelerScene';
 import { useModelerStore } from './modelerStore';
+import { useEditorStore } from '@/store/editorStore';
 import { ModelerToolbar } from './ModelerToolbar';
 import { buildModelerMenu } from './modelerMenu';
 import { ContextMenu, type MenuItem } from '@/ui/ContextMenu';
@@ -40,6 +41,8 @@ export function ModelerViewport() {
   const showWireframe = useModelerStore((s) => s.showWireframe);
   const snapToGrid = useModelerStore((s) => s.snapToGrid);
   const editTool = useModelerStore((s) => s.editTool);
+  // Base colour of the model, mirrored from the project mesh entity (edited in the Inspector).
+  const baseColor = useEditorStore((s) => s.entities.find((e) => e.mesh)?.mesh?.color);
 
   // Create the scene once, load the model, wire picking, and clean up on unmount.
   useEffect(() => {
@@ -119,6 +122,11 @@ export function ModelerViewport() {
   useEffect(() => {
     if (frameRequest > 0) sceneRef.current?.frame();
   }, [frameRequest]);
+
+  // Base colour from the Inspector → tint the viewport material.
+  useEffect(() => {
+    if (baseColor) sceneRef.current?.setBaseColor(baseColor);
+  }, [baseColor]);
 
   // Active transform tool → which gizmo the scene shows.
   useEffect(() => {

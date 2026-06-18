@@ -352,6 +352,16 @@ export class ModelerScene {
     if (on && this.currentGeo) this.wire = buildWireframe(this.scene, this.currentGeo);
   }
 
+  /** Tint the model's base (diffuse) colour from the Inspector. Island-dimming vertex colours
+   *  multiply this, so focus shading still works. Bad hex strings are ignored. */
+  setBaseColor(hex: string): void {
+    try {
+      this.mat.diffuseColor = Color3.FromHexString(hex);
+    } catch {
+      /* leave the previous colour on an unparseable hex */
+    }
+  }
+
   /** Switch the active transform gizmo (re-attaches at the current node position). */
   setGizmoMode(mode: GizmoMode): void {
     this.gizmoMode = mode;

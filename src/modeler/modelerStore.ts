@@ -12,6 +12,7 @@ import { createPickActions, type PickCtx } from './modelerPicking';
 import type { KnifePoint } from '@/kernel/operations/knife';
 import { createEditActions, type Clip, type EditActionsCtx } from './modelerEditActions';
 import { createTransformActions } from './modelerTransformActions';
+import { createInspectorActions } from './modelerInspectorActions';
 import { createMeshActions, type MeshActions } from './modelerMeshActions';
 import { useEditorStore } from '@/store/editorStore';
 import type { KeymapId } from '@/input/keymaps';
@@ -151,6 +152,16 @@ export interface ModelerState extends MeshActions {
   selectionEdgesCompact: () => Array<[number, number]>;
   /** World centroid of the active selection's vertices, or null when nothing is selected. */
   selectionCentroid: () => [number, number, number] | null;
+  /** Centroid + axis-aligned size of the active selection (count 0 when nothing is selected).
+   *  Drives the Inspector's numeric Position/Dimensions fields. */
+  selectionBounds: () => import('./selectionBounds').SelectionBounds;
+  /** Set the selection's centroid on one axis (absolute position); one undoable step. */
+  setSelectionCenter: (axis: import('./modelerInspectorActions').InspectorAxis, value: number) => void;
+  /** Set the selection's bounding-box extent on one axis (absolute size, scaled about its
+   *  centroid); one undoable step. Ignored for a zero-extent axis. */
+  setSelectionDimension: (axis: import('./modelerInspectorActions').InspectorAxis, value: number) => void;
+  /** Rotate the selection about its centroid by an euler delta (degrees); one undoable step. */
+  nudgeSelectionRotation: (eulerDeg: { x: number; y: number; z: number }) => void;
   /** Begin a gizmo drag (snapshots the mesh so the whole drag is one undo step). */
   beginTransform: () => void;
   /** Move the selected faces' vertices by a delta during a gizmo drag (no command yet). */
@@ -424,6 +435,7 @@ export const useModelerStore = create<ModelerState>((set, get) => {
     },
 
     ...createTransformActions(editCtx),
+    ...createInspectorActions(editCtx),
   };
 });
 
