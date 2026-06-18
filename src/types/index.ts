@@ -1,6 +1,6 @@
 import type { Edge, Node } from '@xyflow/react';
-import type { MaterialConfig, RenderSettings } from './visuals';
-import { defaultRenderSettings } from './visuals';
+import type { MaterialConfig, RenderSettings, StudioEnv } from './visuals';
+import { defaultRenderSettings, defaultStudioEnv } from './visuals';
 import type { VolumeConfig } from './volume';
 import type { SkinData, RigComponent } from './studio';
 
@@ -403,6 +403,9 @@ export interface GameDesign {
   hud: HudLayout;
   /** High-quality rendering / lighting config (3D). */
   render: RenderSettings;
+  /** Modeling Studio viewport preview (env/IBL, lights, tone, lit PBR). Studio-only; persisted
+   *  so the Studio reopens as it was left. */
+  studioEnv: StudioEnv;
 }
 
 /**
@@ -420,7 +423,7 @@ export interface PrefabDef {
 }
 
 export function emptyDesign(): GameDesign {
-  return { pitch: '', winCondition: '', loseCondition: '', rules: [], objectives: [], hud: emptyHud(), render: defaultRenderSettings() };
+  return { pitch: '', winCondition: '', loseCondition: '', rules: [], objectives: [], hud: emptyHud(), render: defaultRenderSettings(), studioEnv: defaultStudioEnv() };
 }
 
 // Asset library types (3D models & textures) live in ./assets.

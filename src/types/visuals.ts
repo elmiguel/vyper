@@ -136,3 +136,36 @@ export function defaultRenderSettings(): RenderSettings {
     skybox: false,
   };
 }
+
+/** Tone-mapping curve for the Modeling Studio viewport preview (mirrors RenderSettings.tone). */
+export type StudioTone = 'none' | 'standard' | 'aces';
+
+/**
+ * Studio-only viewport preview settings: image-based environment lighting, key/fill light
+ * levels, tone mapping, and the lit-PBR-preview toggle. These affect ONLY the Modeling
+ * Studio's own Babylon viewport — they are not the game's RenderSettings and never touch the
+ * game pipeline. Persisted in the project design doc so the Studio reopens as it was left.
+ */
+export interface StudioEnv {
+  /** Environment (IBL) texture URL — an `.hdr` or prefiltered `.env`/`.dds`. Empty = none. */
+  url: string;
+  /** IBL strength multiplier (`scene.environmentIntensity`). */
+  intensity: number;
+  /** Render the environment as a background skybox. */
+  skybox: boolean;
+  /** Tone-mapping curve applied to the viewport. */
+  tone: StudioTone;
+  /** Exposure for the tone mapper. */
+  exposure: number;
+  /** Key directional-light intensity. */
+  key: number;
+  /** Hemispheric fill-light intensity. */
+  fill: number;
+  /** Render plain (material-less) meshes with the lit PBR material too (assigned materials
+   *  always preview regardless). */
+  litPreview: boolean;
+}
+
+export function defaultStudioEnv(): StudioEnv {
+  return { url: '', intensity: 1, skybox: false, tone: 'aces', exposure: 1, key: 1.1, fill: 0.75, litPreview: false };
+}
