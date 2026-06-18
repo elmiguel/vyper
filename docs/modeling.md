@@ -121,6 +121,36 @@ highlights. Vertex/edge picking is screen-space nearest-hit
 and the highlight overlay is faces (translucent), vertices (points cloud), or edges
 (bright lines) per the active mode.
 
+## Inspector (numeric transform + material)
+
+The **Inspector** panel ([ModelerInspector.tsx](../src/modeler/ModelerInspector.tsx),
+docked right of the viewport) edits the current selection by number instead of by gizmo
+drag — useful for precise, game-ready models.
+
+- **Transform** follows the active component mode (it acts on whatever
+  `selectedVertices()` resolves to): the whole object in Object mode, or the picked
+  verts/edges/faces in component modes.
+  - **Position** — absolute centroid of the selection (X/Y/Z). Editing translates the
+    selection so its centroid lands on the typed value.
+  - **Rotate°** — a relative angle dialed per axis, applied about the selection's
+    centroid. The dial resets when the selection changes (baked geometry has no
+    persistent rotation of its own).
+  - **Size** — absolute bounding-box extent (W/H/D), scaled about the centroid. A
+    zero-extent axis (e.g. a single vertex or a flat plane) is left alone.
+  - Each edit runs through the existing live-transform primitives
+    (`beginTransform → …Live → endTransform`), so it lands as **one undoable command**,
+    exactly like a gizmo drag.
+- **Material** edits the project mesh entity the modeler mirrors into (so they travel
+  with the model into the game): a base **Color** (`updateMesh`) plus the shared
+  [MaterialEditor](../src/panels/MaterialEditor.tsx) for PBR metallic/roughness/emissive
+  and texture maps (`updateMaterial`). The viewport tints its base colour live via
+  `ModelerScene.setBaseColor`; full PBR preview inside the Studio is a follow-up (the
+  material still persists and renders in the game/scene).
+
+The centroid + axis-aligned size come from [selectionBounds.ts](../src/modeler/selectionBounds.ts)
+(pure), and the numeric actions live in
+[modelerInspectorActions.ts](../src/modeler/modelerInspectorActions.ts).
+
 ## Kernel operations + interactive tools (Modeling Studio)
 
 The kernel modeler runs modeling operators as pure functions in
@@ -326,5 +356,8 @@ reloads, and `addModelEntity` drops them straight into the scene as an editable
 - **GLB export** of created meshes (no `@babylonjs/serializers` dependency yet).
 - **Dynamic tessellation/remeshing** while sculpting (brushes currently move existing
   vertices only; subdivide manually for density).
+- **Full PBR preview in the Studio viewport** — the Inspector persists metallic/roughness/
+  emissive/maps to the entity (rendered in the game/scene), but the Studio viewport only
+  previews the base colour today; it still uses a `StandardMaterial`.
 - **UV unwrapping/painting** and **rigging + keyframe animation** — the next phases.
 - **Offline/desktop CSG** — host the Manifold WASM locally instead of the CDN.
