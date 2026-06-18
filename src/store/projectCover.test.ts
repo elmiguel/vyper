@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ensureAutoCover } from './projectStore';
+import { ensureAutoCover } from './projectCover';
 
 describe('ensureAutoCover', () => {
   it('fills a missing cover from the capture callback', () => {
