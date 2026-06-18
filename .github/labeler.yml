@@ -1,0 +1,119 @@
+# Configuration for actions/labeler (v5+ syntax).
+# Labels are applied to a PR based on the files it changes and its branch name.
+# See: https://github.com/actions/labeler
+#
+# NOTE: labeler only *applies* labels that already exist in the repo — it does
+# not create them. Create any missing labels first (e.g. `gh label create`).
+
+# ----- Documentation -----
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - '**/*.md'
+
+# ----- Tests -----
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.test.ts'
+          - '**/*.test.tsx'
+          - 'src/test/**'
+
+# ----- Dependencies -----
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'package-lock.json'
+
+# ----- CI / tooling -----
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+
+'build/tooling':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'scripts/**'
+          - 'vite.config.ts'
+          - 'tsconfig*.json'
+          - 'drizzle.config.ts'
+
+# ----- Platform layers -----
+server:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'server/**'
+
+electron:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'electron/**'
+
+# ----- Functional areas (src/) -----
+'area: 3d/babylon':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/babylon/**'
+
+'area: mesh-modeling':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/modeler/**'
+          - 'src/kernel/**'
+          - 'src/babylon/editmesh/**'
+
+'area: node-editor':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/nodes/**'
+
+'area: runtime':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/runtime/**'
+
+'area: editor-ui':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/ui/**'
+          - 'src/panels/**'
+          - 'src/screens/**'
+          - 'src/layout/**'
+          - 'src/hud/**'
+          - 'src/onboarding/**'
+          - 'src/styles/**'
+
+'area: store':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/store/**'
+
+'area: assets':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/assets/**'
+          - 'src/data/**'
+          - 'src/api/**'
+
+'area: input':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/input/**'
+
+'area: effects':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/effects/**'
+
+# ----- Branch-name based (matches the scan-fix-pr skill convention) -----
+bug:
+  - head-branch: ['^bug/', '^fix/']
+
+optimization:
+  - head-branch: ['^optimization/', '^perf/']
+
+improvement:
+  - head-branch: ['^improvement/', '^feat/', '^feature/']
