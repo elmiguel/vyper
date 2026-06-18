@@ -108,7 +108,7 @@ export function ModelerTools() {
           <div className="empty-hint inline">
             {component === 'vertex' && 'Connect: 2 verts on a face → edge. Loop: select 2 verts, then Loop (L) — selects the loop, or the path between them.'}
             {component === 'edge' && 'Bridge two edge loops to join them. Double-click an edge (or Loop/L) selects its loop.'}
-            {component === 'object' && 'Click an object to focus it (others dim + lock in edit modes). Shift-click several, then Group to focus/move them as one.'}
+            {component === 'object' && 'Click an object to select it, then switch to a vertex/edge/face mode to edit it (others dim + lock). Shift-click several, then Group to work on them as one.'}
             {component === 'face' && 'Click faces (Shift to add), then extrude. Loop: select 2 faces, then Loop (L) — selects the loop, or the path between them.'}
           </div>
         </div>

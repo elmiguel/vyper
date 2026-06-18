@@ -33,6 +33,8 @@ export function buildModelerMenu(s: Store, km: Keymap): MenuItem[] {
       label: m[0].toUpperCase() + m.slice(1),
       shortcut: MODE_KEYS[m],
       checked: component === m,
+      // Edit modes lock to a focused object — select one in object mode before they're reachable.
+      disabled: m !== 'object' && !s.hasActiveObject(),
       onClick: () => s.setComponent(m),
     })),
   });

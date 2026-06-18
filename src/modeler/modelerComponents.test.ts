@@ -5,6 +5,13 @@ import { useModelerStore } from './modelerStore';
 
 const s = () => useModelerStore.getState();
 
+/** Select the model in object mode so component edit modes are reachable (they lock to a
+ *  focused object). The default model is a single cube, so any face focuses the whole thing. */
+const selectObject = () => {
+  s().setComponent('object');
+  s().applyPick({ kind: 'object', face: 0 }, false);
+};
+
 const meshEntity = (): Entity => ({
   id: 'model', name: 'Mesh', parentId: null,
   transform: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
@@ -40,6 +47,7 @@ describe('modeler — component modes', () => {
   });
 
   it('switching component mode clears the selection', () => {
+    selectObject(); // an object must be focused before an edit mode is reachable
     s().setComponent('face');
     expect(s().component).toBe('face');
     expect(s().objectSelected).toBe(false);
@@ -65,6 +73,7 @@ describe('modeler — component modes', () => {
   });
 
   it('picks a single vertex and centers the gizmo on it', () => {
+    selectObject();
     s().setComponent('vertex');
     s().applyPick({ kind: 'vertex', vertex: 0 }, false);
     expect(s().selection).toHaveLength(1);
@@ -77,6 +86,7 @@ describe('modeler — component modes', () => {
   });
 
   it('shift-adds to the selection and ctrl removes from it', () => {
+    selectObject();
     s().setComponent('vertex');
     s().applyPick({ kind: 'vertex', vertex: 0 }, false);
     s().applyPick({ kind: 'vertex', vertex: 1 }, true); // Shift adds
@@ -87,6 +97,7 @@ describe('modeler — component modes', () => {
   });
 
   it('moving a vertex only moves that vertex (not the whole mesh)', () => {
+    selectObject();
     s().setComponent('vertex');
     s().applyPick({ kind: 'vertex', vertex: 0 }, false);
     const before = meshCentroidY();
@@ -99,6 +110,7 @@ describe('modeler — component modes', () => {
   });
 
   it('picks an edge and centers the gizmo on its midpoint', () => {
+    selectObject();
     s().setComponent('edge');
     const loop = s().geometry.polygons![0];
     const a = loop[0];
@@ -115,8 +127,46 @@ describe('modeler — component modes', () => {
   });
 
   it('a pick whose kind mismatches the active mode is ignored', () => {
+    selectObject();
     s().setComponent('vertex');
     s().applyPick({ kind: 'face', face: 0 }, false);
     expect(s().selection).toEqual([]);
+  });
+});
+
+describe('modeler — edit modes require a selected object', () => {
+  it('ignores switching to an edit mode while nothing is focused', () => {
+    expect(s().hasActiveObject()).toBe(false);
+    for (const mode of ['vertex', 'edge', 'face'] as const) {
+      s().setComponent(mode);
+      expect(s().component).toBe('object'); // gated — stayed in object mode
+    }
+  });
+
+  it('allows edit modes once an object is selected, and locks back out when deselected', () => {
+    selectObject();
+    expect(s().hasActiveObject()).toBe(true);
+    s().setComponent('face');
+    expect(s().component).toBe('face');
+
+    // Back to object mode, click empty space → focus drops, edit modes lock out again.
+    s().setComponent('object');
+    s().applyPick(null, false);
+    expect(s().hasActiveObject()).toBe(false);
+    s().setComponent('vertex');
+    expect(s().component).toBe('object');
+  });
+
+  it('keeps component picks on the focused object and ignores other objects', () => {
+    // Add a second object (a grid beside the cube) and focus the cube.
+    s().addPrimitive('grid');
+    const gridFace = s().geometry.polygons!.length - 1; // last polygon belongs to the new grid
+    s().setComponent('object');
+    s().applyPick({ kind: 'object', face: 0 }, false); // focus the cube
+    s().setComponent('face');
+    s().applyPick({ kind: 'face', face: 0 }, false); // a cube face
+    expect(s().selection).toHaveLength(1);
+    s().applyPick({ kind: 'face', face: gridFace }, false); // the grid (dimmed) is ignored
+    expect(s().selection).toHaveLength(1); // unchanged — focus didn't jump to the grid
   });
 });

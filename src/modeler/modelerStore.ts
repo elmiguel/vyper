@@ -51,7 +51,12 @@ export interface ModelerState extends MeshActions {
   component: ComponentMode;
   /** Whether any object (island) is selected in object mode — kept in sync with `selection`. */
   objectSelected: boolean;
-  /** Switch component mode; clears the current selection. */
+  /** Whether an object (or group) is currently focused — the one component editing locks to.
+   *  Set by selecting an object in object mode; required before entering an edit mode. */
+  hasActiveObject: () => boolean;
+  /** Switch component mode; clears the current selection. Entering an edit mode (vertex/edge/
+   *  face) requires a focused object — without one the switch is a no-op, so editing is always
+   *  scoped to a single object you selected first. */
   setComponent: (component: ComponentMode) => void;
   /** Bumped when geometry changes (drives viewport rebuild). */
   revision: number;
@@ -280,8 +285,15 @@ export const useModelerStore = create<ModelerState>((set, get) => {
     // Tools own viewport input; activating one drops the selection (detaches the gizmo).
     setEditTool: (tool) =>
       set((s) => ({ editTool: s.editTool === tool ? 'none' : tool, selection: [], objectSelected: false, selRevision: s.selRevision + 1 })),
+    hasActiveObject: () => active.isSet,
     setComponent: (component) =>
-      set((s) => ({ component, selection: [], objectSelected: false, selRevision: s.selRevision + 1 })),
+      set((s) => {
+        // Edit modes (vertex/edge/face) act on the focused object, so one must be selected
+        // first (in object mode). Without a focused object the switch is ignored — you can't
+        // drop into an edit mode against "nothing". Object mode is always reachable.
+        if (component !== 'object' && !active.isSet) return {};
+        return { component, selection: [], objectSelected: false, selRevision: s.selRevision + 1 };
+      }),
     setKeymap: (id) => set({ keymap: id }),
     toggleWireframe: () => set((s) => ({ showWireframe: !s.showWireframe })),
     toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),

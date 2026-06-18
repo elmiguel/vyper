@@ -45,4 +45,23 @@ describe('ModelerToolbar', () => {
     fireEvent.click(screen.getByTitle('Hide wireframe'));
     expect(useModelerStore.getState().showWireframe).toBe(false);
   });
+
+  it('disables the edit modes until an object is selected', () => {
+    useModelerStore.getState().init(); // fresh model, nothing focused
+    render(<ModelerToolbar />);
+    expect(screen.getByTitle(/Object mode/)).toBeEnabled();
+    expect(screen.getByTitle(/Vertex mode — select an object first/)).toBeDisabled();
+    expect(screen.getByTitle(/Edge mode — select an object first/)).toBeDisabled();
+    expect(screen.getByTitle(/Face mode — select an object first/)).toBeDisabled();
+  });
+
+  it('enables the edit modes once an object is focused', () => {
+    const st = useModelerStore.getState();
+    st.init();
+    st.setComponent('object');
+    st.applyPick({ kind: 'object', face: 0 }, false); // select the object
+    render(<ModelerToolbar />);
+    expect(screen.getByTitle(/Vertex mode \(2\)/)).toBeEnabled();
+    expect(screen.getByTitle(/Face mode \(4\)/)).toBeEnabled();
+  });
 });

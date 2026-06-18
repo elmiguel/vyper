@@ -18,6 +18,10 @@ const meshEntity = (): Entity => ({
 beforeEach(() => {
   useEditorStore.setState({ entities: [meshEntity()], past: [], future: [], sceneRevision: 0 });
   s().init();
+  // Editing locks to a focused object, so select it in object mode before dropping into an
+  // edit mode. The model here is a single cube, so picking any face focuses the whole thing.
+  s().setComponent('object');
+  s().applyPick({ kind: 'object', face: 0 }, false);
   s().setComponent('face'); // these cases exercise the face-component editing path
 });
 
