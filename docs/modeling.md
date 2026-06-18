@@ -151,6 +151,39 @@ The centroid + axis-aligned size come from [selectionBounds.ts](../src/modeler/s
 (pure), and the numeric actions live in
 [modelerInspectorActions.ts](../src/modeler/modelerInspectorActions.ts).
 
+## Assets + Environment (shared with the game engine)
+
+For a cohesive feel with the rest of the editor, the Studio reuses the game engine's
+asset and material components and adds a Studio-only lighting/environment preview.
+
+- **Asset library** — the **Assets** button in the Studio bar opens the same
+  [AssetBrowser](../src/assets/AssetBrowser.tsx) + [AssetViewer](../src/assets/AssetViewer.tsx)
+  overlays the game editor uses (mounted from [ModelerLayout](../src/modeler/ModelerLayout.tsx)).
+  The library is shared state (`useEditorStore.assetLibrary`, loaded once at app start), so
+  textures/HDRs imported here flow straight into the Inspector's material maps. Each material
+  map slot (Base/Normal/Rough/AO/Emissive) also has an **Import textures…** entry that opens
+  the asset browser directly, so you can fetch a texture from where you need it.
+- **Environment panel** ([ModelerEnvironmentPanel.tsx](../src/modeler/ModelerEnvironmentPanel.tsx),
+  tabbed beside the Inspector) controls a **Studio-only** viewport preview — it never changes
+  the shipped game scene:
+  - **Environment (IBL)** — image-based lighting + reflections from an HDRI. Environments come
+    from the **Assets → CC0** importer (which stores the URL on the shared render settings); a
+    freshly imported HDRI auto-applies to the Studio preview. Includes an intensity and an
+    optional background skybox.
+  - **Lighting** — key (directional) + fill (hemispheric) intensities.
+  - **Render** — a mesh renders with its real `PBRMaterial` (reflecting the environment +
+    reading its `MaterialConfig`: metallic/roughness/emissive/maps) **as soon as a material is
+    assigned**, so textures preview with no extra step. **Lit shading on plain meshes**
+    additionally forces PBR lighting on meshes that have no material yet (otherwise they keep
+    the flat modeling shading). Plus tone mapping + exposure. The choice is the pure
+    `usesLitMaterial(litPreview, material)` in [modelerScenePreview.ts](../src/modeler/modelerScenePreview.ts).
+
+State lives in `useModelerStore.studioEnv` ([modelerEnvironment.ts](../src/modeler/modelerEnvironment.ts));
+the rendering is applied by [StudioPreview](../src/modeler/modelerScenePreview.ts) (env/IBL,
+tone mapping, lights, PBR material — mirroring the game's `RenderPipeline`/`materials.ts`
+patterns) on the modeler's own Babylon scene. The island-dimming vertex colours still apply in
+either material mode, so focus shading is unaffected.
+
 ## Kernel operations + interactive tools (Modeling Studio)
 
 The kernel modeler runs modeling operators as pure functions in
@@ -356,8 +389,5 @@ reloads, and `addModelEntity` drops them straight into the scene as an editable
 - **GLB export** of created meshes (no `@babylonjs/serializers` dependency yet).
 - **Dynamic tessellation/remeshing** while sculpting (brushes currently move existing
   vertices only; subdivide manually for density).
-- **Full PBR preview in the Studio viewport** — the Inspector persists metallic/roughness/
-  emissive/maps to the entity (rendered in the game/scene), but the Studio viewport only
-  previews the base colour today; it still uses a `StandardMaterial`.
 - **UV unwrapping/painting** and **rigging + keyframe animation** — the next phases.
 - **Offline/desktop CSG** — host the Manifold WASM locally instead of the CDN.

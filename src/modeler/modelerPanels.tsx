@@ -2,15 +2,17 @@ import type { DockviewApi, IDockviewPanelProps } from 'dockview';
 import { ModelerViewport } from './ModelerViewport';
 import { ModelerTools } from './ModelerTools';
 import { ModelerInspector } from './ModelerInspector';
+import { ModelerEnvironmentPanel } from './ModelerEnvironmentPanel';
 
 /** Dockable panels in the 3D Modeling area — purpose-built for modeling + rendering,
  *  with no game-editor panels (no Scripts/Game/Debugger/scene gizmos). */
-export type ModelerPanelKey = 'viewport' | 'tools' | 'inspector';
+export type ModelerPanelKey = 'viewport' | 'tools' | 'inspector' | 'environment';
 
 export const MODELER_PANELS: Record<ModelerPanelKey, { title: string; Component: () => JSX.Element }> = {
   viewport: { title: 'Viewport', Component: ModelerViewport },
   tools: { title: 'Modeling', Component: ModelerTools },
   inspector: { title: 'Inspector', Component: ModelerInspector },
+  environment: { title: 'Environment', Component: ModelerEnvironmentPanel },
 };
 
 const KEYS = Object.keys(MODELER_PANELS) as ModelerPanelKey[];
@@ -34,4 +36,6 @@ export function buildModelerLayout(api: DockviewApi) {
   api.addPanel({ id: 'viewport', component: 'viewport', title: MODELER_PANELS.viewport.title });
   api.addPanel({ id: 'tools', component: 'tools', title: MODELER_PANELS.tools.title, position: { referencePanel: 'viewport', direction: 'left' }, initialWidth: 240 });
   api.addPanel({ id: 'inspector', component: 'inspector', title: MODELER_PANELS.inspector.title, position: { referencePanel: 'viewport', direction: 'right' }, initialWidth: 280 });
+  // Environment shares the right column as a tab beside the Inspector.
+  api.addPanel({ id: 'environment', component: 'environment', title: MODELER_PANELS.environment.title, position: { referencePanel: 'inspector', direction: 'within' } });
 }

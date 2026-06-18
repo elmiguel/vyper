@@ -1,14 +1,15 @@
 import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
-import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
-import { DirectionalLight } from '@babylonjs/core/Lights/directionalLight';
 import { Vector3, Quaternion } from '@babylonjs/core/Maths/math.vector';
 import { Color3, Color4 } from '@babylonjs/core/Maths/math.color';
 import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import type { MaterialConfig } from '@/types';
+import type { StudioEnv } from './modelerEnvironment';
+import { StudioPreview } from './modelerScenePreview';
 import { PositionGizmo } from '@babylonjs/core/Gizmos/positionGizmo';
 import { RotationGizmo } from '@babylonjs/core/Gizmos/rotationGizmo';
 import { ScaleGizmo } from '@babylonjs/core/Gizmos/scaleGizmo';
@@ -94,6 +95,9 @@ export class ModelerScene {
   private readonly mat: StandardMaterial;
   private readonly hiMat: StandardMaterial;
   private readonly vertMat: StandardMaterial;
+  /** Studio-only viewport preview: environment/IBL, skybox, tone mapping, key/fill lights, and
+   *  the lit PBR material. Owns its own lights (see {@link StudioPreview}). */
+  private readonly preview: StudioPreview;
   /** Maps a render-triangle index → originating polygon index, for face picking. */
   private triToFace: number[] = [];
   private componentMode: ComponentMode = 'object';
@@ -139,11 +143,8 @@ export class ModelerScene {
     this.camera.panningSensibility = 600;
     this.camera.minZ = 0.05;
 
-    // Soft fill + a key directional light for readable shading.
-    const hemi = new HemisphericLight('hemi', new Vector3(0.3, 1, 0.4), this.scene);
-    hemi.intensity = 0.75;
-    const key = new DirectionalLight('key', new Vector3(-0.5, -1, -0.4), this.scene);
-    key.intensity = 1.1;
+    // Lighting + environment/tone preview (creates the viewport's hemi + key lights).
+    this.preview = new StudioPreview(this.scene);
 
     this.mat = new StandardMaterial('modelMat', this.scene);
     this.mat.diffuseColor = Color3.FromHexString('#9aa3b2');
@@ -357,9 +358,17 @@ export class ModelerScene {
   setBaseColor(hex: string): void {
     try {
       this.mat.diffuseColor = Color3.FromHexString(hex);
+      this.preview.setColor(hex);
     } catch {
       /* leave the previous colour on an unparseable hex */
     }
+  }
+
+  /** Apply the Studio viewport preview (env/IBL, skybox, tone, key/fill lights, lit PBR
+   *  material) and re-assign the model's material to match the lit toggle. Studio-only. */
+  applyStudioEnv(env: StudioEnv, color: string, material?: MaterialConfig): void {
+    this.preview.apply(env, color, material);
+    if (this.mesh) this.mesh.material = this.preview.activeMaterial(this.mat);
   }
 
   /** Switch the active transform gizmo (re-attaches at the current node position). */
@@ -422,7 +431,7 @@ export class ModelerScene {
     vd.indices = geo.indices;
     vd.normals = geo.normals.length ? geo.normals : computeNormals(geo);
     vd.applyToMesh(mesh, true);
-    mesh.material = this.mat;
+    mesh.material = this.preview.activeMaterial(this.mat);
     this.mesh = mesh;
     this.currentGeo = geo;
 
@@ -481,6 +490,7 @@ export class ModelerScene {
 
   dispose(): void {
     this.engine.stopRenderLoop();
+    this.preview.dispose();
     this.scene.dispose();
     this.engine.dispose();
   }

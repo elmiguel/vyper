@@ -14,6 +14,7 @@ import { createEditActions, type Clip, type EditActionsCtx } from './modelerEdit
 import { createTransformActions } from './modelerTransformActions';
 import { createInspectorActions } from './modelerInspectorActions';
 import { createMeshActions, type MeshActions } from './modelerMeshActions';
+import { defaultStudioEnv, type StudioEnv } from './modelerEnvironment';
 import { useEditorStore } from '@/store/editorStore';
 import type { KeymapId } from '@/input/keymaps';
 import type { ModelerPick } from './ModelerScene';
@@ -81,6 +82,11 @@ export interface ModelerState extends MeshActions {
   snapToGrid: boolean;
   /** Active interactive edit tool (loop cut / knife), or 'none' for normal select/gizmo. */
   editTool: EditTool;
+  /** Studio-only viewport preview: environment/IBL, key/fill light levels, tone mapping, and
+   *  the lit (PBR) preview toggle. Does not affect the game scene. */
+  studioEnv: StudioEnv;
+  /** Patch the Studio viewport preview settings (environment / lighting / tone / lit preview). */
+  setStudioEnv: (patch: Partial<StudioEnv>) => void;
   setTool: (tool: ModelerTool) => void;
   /** Activate/clear an interactive edit tool; toggling the active one returns to 'none'. */
   setEditTool: (tool: EditTool) => void;
@@ -288,6 +294,7 @@ export const useModelerStore = create<ModelerState>((set, get) => {
     keymap: 'maya',
     showWireframe: true,
     snapToGrid: false,
+    studioEnv: defaultStudioEnv(),
     retopoResolution: 4,
     frameRequest: 0,
 
@@ -305,6 +312,7 @@ export const useModelerStore = create<ModelerState>((set, get) => {
         if (component !== 'object' && !active.isSet) return {};
         return { component, selection: [], objectSelected: false, selRevision: s.selRevision + 1 };
       }),
+    setStudioEnv: (patch) => set((s) => ({ studioEnv: { ...s.studioEnv, ...patch } })),
     setKeymap: (id) => set({ keymap: id }),
     toggleWireframe: () => set((s) => ({ showWireframe: !s.showWireframe })),
     toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
