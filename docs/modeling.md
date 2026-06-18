@@ -160,7 +160,9 @@ asset and material components and adds a Studio-only lighting/environment previe
   [AssetBrowser](../src/assets/AssetBrowser.tsx) + [AssetViewer](../src/assets/AssetViewer.tsx)
   overlays the game editor uses (mounted from [ModelerLayout](../src/modeler/ModelerLayout.tsx)).
   The library is shared state (`useEditorStore.assetLibrary`, loaded once at app start), so
-  textures/HDRs imported here flow straight into the Inspector's material maps.
+  textures/HDRs imported here flow straight into the Inspector's material maps. Each material
+  map slot (Base/Normal/Rough/AO/Emissive) also has an **Import textures…** entry that opens
+  the asset browser directly, so you can fetch a texture from where you need it.
 - **Environment panel** ([ModelerEnvironmentPanel.tsx](../src/modeler/ModelerEnvironmentPanel.tsx),
   tabbed beside the Inspector) controls a **Studio-only** viewport preview — it never changes
   the shipped game scene:

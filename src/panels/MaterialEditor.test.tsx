@@ -56,4 +56,16 @@ describe('MaterialEditor', () => {
     render(<MaterialEditor entity={box({ material: { shading: 'standard', metallic: 0, roughness: 1 } })} />);
     expect(screen.queryByText('Metallic')).not.toBeInTheDocument();
   });
+
+  it('offers an "Import textures…" option in map slots that opens the asset browser', () => {
+    useEditorStore.setState({ showAssetBrowser: false });
+    render(<MaterialEditor entity={box()} />);
+    // Base map slot is the first map <select>; its last option opens the library.
+    expect(screen.getAllByRole('option', { name: 'Import textures…' }).length).toBeGreaterThan(0);
+    const baseMap = screen.getByText('Base map').parentElement!.querySelector('select')!;
+    fireEvent.change(baseMap, { target: { value: '__browse__' } });
+    expect(useEditorStore.getState().showAssetBrowser).toBe(true);
+    // ...and it did NOT set the map to the sentinel value.
+    expect(useEditorStore.getState().entities[0]?.mesh?.material?.baseColorMap).toBeUndefined();
+  });
 });

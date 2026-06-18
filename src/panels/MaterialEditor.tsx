@@ -22,18 +22,27 @@ function Slider({ label, value, min, max, step, onChange, disabled }: {
   );
 }
 
-/** A dropdown that selects a texture URL (or none) for one PBR map slot. */
-function MapSlot({ label, value, options, onChange, disabled }: {
-  label: string; value: string | undefined; options: TexOption[]; onChange: (url: string | undefined) => void; disabled?: boolean;
+/** Sentinel option value: pick it to open the asset library instead of selecting a texture. */
+const BROWSE = '__browse__';
+
+/** A dropdown that selects a texture URL (or none) for one PBR map slot. The last entry opens
+ *  the asset browser so you can import/pick textures right where you need them. */
+function MapSlot({ label, value, options, onChange, onBrowse, disabled }: {
+  label: string; value: string | undefined; options: TexOption[]; onChange: (url: string | undefined) => void; onBrowse: () => void; disabled?: boolean;
 }) {
   return (
     <div className="field">
       <span className="field-label">{label}</span>
-      <select value={value ?? ''} disabled={disabled} onChange={(e) => onChange(e.target.value || undefined)}>
+      <select
+        value={value ?? ''}
+        disabled={disabled}
+        onChange={(e) => (e.target.value === BROWSE ? onBrowse() : onChange(e.target.value || undefined))}
+      >
         <option value="">None</option>
         {options.map((o) => (
           <option key={o.url} value={o.url}>{o.name}</option>
         ))}
+        <option value={BROWSE}>{options.length ? 'Import more…' : 'Import textures…'}</option>
       </select>
     </div>
   );
@@ -51,6 +60,7 @@ export function MaterialEditor({ entity, disabled }: { entity: Entity; disabled?
   const presets = useEditorStore((s) => s.materialPresets);
   const applyPreset = useEditorStore((s) => s.applyMaterialPreset);
   const savePreset = useEditorStore((s) => s.saveMaterialPreset);
+  const openAssets = useEditorStore((s) => s.setShowAssetBrowser);
 
   const texOptions = useMemo<TexOption[]>(
     () =>
@@ -122,11 +132,11 @@ export function MaterialEditor({ entity, disabled }: { entity: Entity; disabled?
             </>
           )}
 
-          <MapSlot label="Base map" value={m.baseColorMap} options={texOptions} disabled={disabled} onChange={(u) => set({ baseColorMap: u })} />
-          <MapSlot label="Normal" value={m.normalMap} options={texOptions} disabled={disabled} onChange={(u) => set({ normalMap: u })} />
-          <MapSlot label="Rough map" value={m.roughnessMap} options={texOptions} disabled={disabled} onChange={(u) => set({ roughnessMap: u })} />
-          <MapSlot label="Ambient occl." value={m.aoMap} options={texOptions} disabled={disabled} onChange={(u) => set({ aoMap: u })} />
-          <MapSlot label="Emissive map" value={m.emissiveMap} options={texOptions} disabled={disabled} onChange={(u) => set({ emissiveMap: u })} />
+          <MapSlot label="Base map" value={m.baseColorMap} options={texOptions} disabled={disabled} onBrowse={() => openAssets(true)} onChange={(u) => set({ baseColorMap: u })} />
+          <MapSlot label="Normal" value={m.normalMap} options={texOptions} disabled={disabled} onBrowse={() => openAssets(true)} onChange={(u) => set({ normalMap: u })} />
+          <MapSlot label="Rough map" value={m.roughnessMap} options={texOptions} disabled={disabled} onBrowse={() => openAssets(true)} onChange={(u) => set({ roughnessMap: u })} />
+          <MapSlot label="Ambient occl." value={m.aoMap} options={texOptions} disabled={disabled} onBrowse={() => openAssets(true)} onChange={(u) => set({ aoMap: u })} />
+          <MapSlot label="Emissive map" value={m.emissiveMap} options={texOptions} disabled={disabled} onBrowse={() => openAssets(true)} onChange={(u) => set({ emissiveMap: u })} />
         </>
       )}
     </>
