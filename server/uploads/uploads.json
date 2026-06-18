@@ -218,5 +218,49 @@
     "textures": [
       "brown_mud_03_ao_1k.jpg"
     ]
+  },
+  {
+    "id": "brown_planks_03_diff_1k",
+    "name": "brown_planks_03_diff_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_planks_03_diff_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_planks_03_nor_gl_1k",
+    "name": "brown_planks_03_nor_gl_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_planks_03_nor_gl_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_planks_03_rough_1k",
+    "name": "brown_planks_03_rough_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_planks_03_rough_1k.jpg"
+    ]
+  },
+  {
+    "id": "brown_planks_03_ao_1k",
+    "name": "brown_planks_03_ao_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "brown_planks_03_ao_1k.jpg"
+    ]
   }
 ]
