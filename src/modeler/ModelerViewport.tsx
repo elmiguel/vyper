@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ModelerScene } from './ModelerScene';
 import { useModelerStore } from './modelerStore';
 import { useEditorStore } from '@/store/editorStore';
+import { setViewportCapturer } from '@/store/projectCover';
+import { canvasThumbnail } from '@/babylon/thumbnail';
 import { ModelerToolbar } from './ModelerToolbar';
 import { buildModelerMenu } from './modelerMenu';
 import { ContextMenu, type MenuItem } from '@/ui/ContextMenu';
@@ -75,10 +77,14 @@ export function ModelerViewport() {
     useModelerStore.getState().init();
     scene.setGeometry(useModelerStore.getState().geometry);
     scene.frame();
+    // Project covers: capture the model viewport (the Studio runs its own engine, so the
+    // shared capturer points here while it's mounted) — same auto-cover the game editor uses.
+    setViewportCapturer(() => canvasThumbnail(scene.renderingCanvas));
     const ro = new ResizeObserver(() => scene.resize());
     if (wrapRef.current) ro.observe(wrapRef.current);
     return () => {
       ro.disconnect();
+      setViewportCapturer(null);
       scene.dispose();
       sceneRef.current = null;
     };

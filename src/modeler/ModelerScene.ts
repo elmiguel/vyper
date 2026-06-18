@@ -144,8 +144,7 @@ export class ModelerScene {
     this.camera.panningSensibility = 600;
     this.camera.minZ = 0.05;
 
-    // Lighting + environment/tone preview (creates the viewport's hemi + key lights).
-    this.preview = new StudioPreview(this.scene);
+    this.preview = new StudioPreview(this.scene); // lights + env/tone/lit-material preview
 
     this.mat = new StandardMaterial('modelMat', this.scene);
     this.mat.diffuseColor = Color3.FromHexString('#9aa3b2');
@@ -354,19 +353,20 @@ export class ModelerScene {
     if (on && this.currentGeo) this.wire = buildWireframe(this.scene, this.currentGeo);
   }
 
-  /** Tint the model's base (diffuse) colour from the Inspector. Island-dimming vertex colours
-   *  multiply this, so focus shading still works. Bad hex strings are ignored. */
+  /** Tint the model's base (diffuse) colour from the Inspector (vertex colours still dim). */
   setBaseColor(hex: string): void {
     try {
       this.mat.diffuseColor = Color3.FromHexString(hex);
       this.preview.setColor(hex);
-    } catch {
-      /* leave the previous colour on an unparseable hex */
-    }
+    } catch { /* bad hex → keep the previous colour */ }
   }
 
-  /** Apply the Studio viewport preview (env/IBL, skybox, tone, key/fill lights, lit PBR
-   *  material) and re-assign the model's material to match the lit toggle. Studio-only. */
+  /** WebGL canvas this scene renders to (for capturing project-cover thumbnails). */
+  get renderingCanvas(): HTMLCanvasElement | null {
+    return this.engine.getRenderingCanvas();
+  }
+
+  /** Apply the Studio viewport preview (env/lights/tone/lit PBR) + re-assign the material. */
   applyStudioEnv(env: StudioEnv, color: string, material?: MaterialConfig): void {
     this.preview.apply(env, color, material);
     if (this.mesh) this.mesh.material = this.preview.activeMaterial(this.mat);
@@ -431,8 +431,7 @@ export class ModelerScene {
     vd.positions = geo.positions;
     vd.indices = geo.indices;
     vd.normals = geo.normals.length ? geo.normals : computeNormals(geo);
-    // The kernel produces no UVs, so PBR textures would sample a single texel (flat colour).
-    // Generate box/tri-planar UVs from the geometry so material maps actually show.
+    // Kernel meshes have no UVs (textures would sample one texel); generate box/tri-planar UVs.
     vd.uvs = geo.uvs?.length ? geo.uvs : computeBoxUVs(geo.positions, vd.normals);
     vd.applyToMesh(mesh, true);
     mesh.material = this.preview.activeMaterial(this.mat);

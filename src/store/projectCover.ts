@@ -22,9 +22,21 @@ export function ensureAutoCover(
   return settings;
 }
 
-/** Grab the current editor viewport as a thumbnail data URL, or null if unavailable. */
+/** An active viewport capturer registered by a non-game workspace (e.g. the Modeling Studio,
+ *  which runs its own Babylon engine, not the game SceneManager). */
+let registeredCapturer: (() => string | null) | null = null;
+
+/** Register the active viewport's thumbnail capturer; it takes precedence over the game
+ *  SceneManager so the workspace currently on screen is what gets captured. Pass null to clear
+ *  (e.g. on the Studio viewport unmounting). */
+export function setViewportCapturer(capture: (() => string | null) | null): void {
+  registeredCapturer = capture;
+}
+
+/** Grab the current editor viewport as a thumbnail data URL, or null if unavailable. Prefers a
+ *  registered capturer (Studio), falling back to the game SceneManager. */
 export function captureViewportCover(): string | null {
-  return getManager()?.captureThumbnail() ?? null;
+  return registeredCapturer?.() ?? getManager()?.captureThumbnail() ?? null;
 }
 
 /** Clear the once-per-session auto-cover guard for a project (call when opening it). */

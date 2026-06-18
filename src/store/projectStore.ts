@@ -324,12 +324,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // Models keep their 'model' kind; games store their 2D/3D authoring mode.
       const projectKind = isModelProject(get().gameSettings) ? 'model' : ed.mode;
       const settings: Record<string, unknown> = { ...get().gameSettings, kind: projectKind, design: ed.design, prefabs: ed.prefabs, materials: ed.materialPresets, workspace: ed.workspace };
-      // Auto-cover (autosaves only): on the first autosave with no cover assigned,
-      // grab a viewport thumbnail so the home-screen card isn't blank. Captured at
-      // most once per session and never over an existing cover (see applyAutoCover).
-      // Manual saves don't auto-capture — users set a cover explicitly via the
-      // toolbar thumbnail button or the card's Upload image action.
-      if (opts?.snapshot !== 'manual') applyAutoCover(gameId, settings);
+      // Auto-cover: on the first save with no cover assigned, grab a viewport thumbnail so the
+      // home-screen card isn't blank — captured at most once per session, never over an
+      // existing cover (see applyAutoCover). Games only auto-capture on autosaves (manual saves
+      // let users set a cover explicitly); the Modeling Studio only saves manually, so model
+      // projects auto-capture there too, using the Studio's registered viewport capturer.
+      if (opts?.snapshot !== 'manual' || projectKind === 'model') applyAutoCover(gameId, settings);
       await api.patchGame(gameId, { activeSceneId: sceneId, settings });
       set({ gameSettings: settings });
 

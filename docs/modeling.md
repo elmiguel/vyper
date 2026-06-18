@@ -187,6 +187,16 @@ tone mapping, lights, PBR material — mirroring the game's `RenderPipeline`/`ma
 patterns) on the modeler's own Babylon scene. The island-dimming vertex colours still apply in
 either material mode, so focus shading is unaffected.
 
+### Project thumbnail
+
+The Studio captures a project cover the same way the game editor does. The shared
+[canvasThumbnail](../src/babylon/thumbnail.ts) helper downscales a viewport canvas to a JPEG
+data URL; the Studio viewport registers its `ModelerScene` canvas as the active capturer
+(`setViewportCapturer` in [projectCover.ts](../src/store/projectCover.ts)), so it takes
+precedence over the game `SceneManager` while the Studio is open. On save, model projects run
+the same auto-cover rule (`applyAutoCover`) — a thumbnail of the model is captured once per
+session when no cover is set, never overwriting a user-chosen cover.
+
 ## Kernel operations + interactive tools (Modeling Studio)
 
 The kernel modeler runs modeling operators as pure functions in

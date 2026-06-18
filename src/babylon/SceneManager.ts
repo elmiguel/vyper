@@ -46,6 +46,7 @@ import {
   applyTransform,
   GAME_CAMERA_ID,
 } from './sceneBuilders';
+import { canvasThumbnail } from './thumbnail';
 
 export class SceneManager {
   readonly engine: Engine;
@@ -439,20 +440,7 @@ export class SceneManager {
    *  `preserveDrawingBuffer` keeps the latest frame available. Returns null if the
    *  engine hasn't drawn yet or a 2D canvas isn't available. */
   captureThumbnail(width = 480): string | null {
-    const src = this.master;
-    if (!src.width || !src.height) return null;
-    const height = Math.max(1, Math.round((width * src.height) / src.width));
-    const out = document.createElement('canvas');
-    out.width = width;
-    out.height = height;
-    const ctx = out.getContext('2d');
-    if (!ctx) return null;
-    try {
-      ctx.drawImage(src, 0, 0, width, height);
-      return out.toDataURL('image/jpeg', 0.8);
-    } catch {
-      return null; // e.g. a tainted/lost context — skip the auto-cover this time
-    }
+    return canvasThumbnail(this.master, width);
   }
 
   // ----- Runtime entity control (cross-entity scripts / triggers / volumes) -----
