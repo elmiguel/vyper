@@ -7,6 +7,12 @@ import { KEYMAPS } from '@/input/keymaps';
 
 const s = () => useModelerStore.getState();
 
+/** Select the (single cube) model so edit modes are reachable — they lock to a focused object. */
+const selectObject = () => {
+  s().setComponent('object');
+  s().applyPick({ kind: 'object', face: 0 }, false);
+};
+
 const meshEntity = (): Entity => ({
   id: 'model', name: 'Mesh', parentId: null,
   transform: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
@@ -41,6 +47,7 @@ describe('buildModelerMenu', () => {
   });
 
   it('shows face ops in face mode and labels Delete per mode', () => {
+    selectObject();
     s().setComponent('face');
     s().pickFace(0, false);
     const m = flatten(buildModelerMenu(s(), KEYMAPS.maya));
@@ -57,6 +64,7 @@ describe('buildModelerMenu', () => {
   });
 
   it('shows Connect / Add Face / Merge in vertex mode', () => {
+    selectObject();
     s().setComponent('vertex');
     const m = flatten(buildModelerMenu(s(), KEYMAPS.maya));
     expect(m.has('Connect')).toBe(true);
@@ -67,6 +75,7 @@ describe('buildModelerMenu', () => {
   });
 
   it('shows Bridge / Add Vertex / Collapse + loop/ring in edge mode', () => {
+    selectObject();
     s().setComponent('edge');
     const m = flatten(buildModelerMenu(s(), KEYMAPS.maya));
     expect(m.has('Bridge')).toBe(true);
@@ -78,6 +87,7 @@ describe('buildModelerMenu', () => {
   });
 
   it('disables Paste until something is copied', () => {
+    selectObject();
     s().setComponent('face');
     expect(flatten(buildModelerMenu(s(), KEYMAPS.maya)).get('Paste')!.disabled).toBe(true);
     s().pickFace(0, false);

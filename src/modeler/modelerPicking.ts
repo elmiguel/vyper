@@ -48,35 +48,11 @@ export function createPickActions(ctx: PickCtx): Pick<ModelerState, 'applyPick' 
     });
   };
 
-  /** A kernel face id touched by a pick (any component), for focusing its island. */
-  const faceOfPick = (pick: NonNullable<ModelerPick>): number | undefined => {
-    const mesh = ctx.mesh();
-    if (pick.kind === 'face' || pick.kind === 'object') return ctx.faceOrder()[pick.face];
-    if (pick.kind === 'vertex') {
-      const v = ctx.vertOrder()[pick.vertex];
-      const he = v !== undefined ? mesh.vertices[v]?.halfEdge ?? -1 : -1;
-      return he >= 0 ? mesh.halfEdges[he].face : undefined;
-    }
-    const eid = ctx.edgeFromCompact(pick.edge[0], pick.edge[1]);
-    return eid !== null ? mesh.edgeFaces(eid)[0] : undefined;
-  };
-
   /** Whether a component pick lands on the focused object (so it isn't a jump to another). */
   const pickOnActive = (pick: NonNullable<ModelerPick>): boolean => {
     if (pick.kind === 'vertex') return active.verts.has(ctx.vertOrder()[pick.vertex]);
     if (pick.kind === 'edge') return active.verts.has(ctx.vertOrder()[pick.edge[0]]) && active.verts.has(ctx.vertOrder()[pick.edge[1]]);
     return active.faces.has(ctx.faceOrder()[pick.face]);
-  };
-
-  /** Focus the object a pick touches — the whole group if it's grouped (first interaction /
-   *  object-mode click). */
-  const focusPickIsland = (pick: NonNullable<ModelerPick>) => {
-    const mesh = ctx.mesh();
-    const f = faceOfPick(pick);
-    if (f !== undefined && mesh.faces[f] && !mesh.faces[f].removed) {
-      active.setIslands(mesh, ctx.groups.islandsForFocus(mesh, f));
-      set((s) => ({ activeRevision: s.activeRevision + 1 }));
-    }
   };
 
   const clearSelection = () => set((s) => ({ selection: [], objectSelected: false, selRevision: s.selRevision + 1 }));
@@ -85,15 +61,12 @@ export function createPickActions(ctx: PickCtx): Pick<ModelerState, 'applyPick' 
     const mesh = ctx.mesh();
     const component = get().component;
     const mode = subtract ? 'remove' : additive ? 'add' : 'replace';
-    // Focus lock (vertex/edge/face): editing stays on the focused object. The first pick
-    // focuses the object it touches; afterward, picks on other (dimmed) objects are ignored so
-    // the working object doesn't jump. Switch objects in Object mode.
+    // Focus lock (vertex/edge/face): editing stays on the focused object — the one selected in
+    // object mode before entering this mode. Picks on other (dimmed) objects are ignored so the
+    // working object never jumps; switch objects back in Object mode. With nothing focused there
+    // is nothing to edit (you can't reach an edit mode without a focused object), so bail.
     if (component !== 'object' && pick) {
-      if (active.isSet) {
-        if (!pickOnActive(pick)) return;
-      } else {
-        focusPickIsland(pick);
-      }
+      if (!active.isSet || !pickOnActive(pick)) return;
     }
     // Double-click selects a loop. Edge: the clicked edge fixes its loop directly. Vertex/face:
     // a single point/face has no direction, so use the anchors selected *before* this
@@ -116,7 +89,15 @@ export function createPickActions(ctx: PickCtx): Pick<ModelerState, 'applyPick' 
     // Snapshot the current selection so the *next* double-click can use it as anchors.
     beforeClick = [...get().selection];
     if (pick === null) {
-      if (mode === 'replace') clearSelection();
+      if (mode === 'replace') {
+        // Clicking empty space in object mode deselects *and* drops the focused object, so the
+        // current object always mirrors the object-mode selection (and edit modes lock back out).
+        if (component === 'object' && active.isSet) {
+          active.clear();
+          set((s) => ({ activeRevision: s.activeRevision + 1 }));
+        }
+        clearSelection();
+      }
       return;
     }
     if (pick.kind === 'object' && component === 'object') {

@@ -25,6 +25,8 @@ const MODES: Array<{ id: ComponentMode; key: string; label: string; Icon: typeof
 export function ModelerToolbar() {
   const tool = useModelerStore((s) => s.tool);
   const component = useModelerStore((s) => s.component);
+  useModelerStore((s) => s.activeRevision); // re-render when the focused object changes
+  const hasActiveObject = useModelerStore((s) => s.hasActiveObject)();
   const keymap = useModelerStore((s) => s.keymap);
   const showWireframe = useModelerStore((s) => s.showWireframe);
   const snapToGrid = useModelerStore((s) => s.snapToGrid);
@@ -38,17 +40,22 @@ export function ModelerToolbar() {
   return (
     <div className="modeler-toolbar">
       <div className="mtb-tools">
-        {MODES.map(({ id, key, label, Icon }) => (
-          <button
-            key={id}
-            className={`tb-icon ${component === id ? 'active' : ''}`}
-            title={`${label} (${key})`}
-            aria-pressed={component === id}
-            onClick={() => setComponent(id)}
-          >
-            <Icon size={16} />
-          </button>
-        ))}
+        {MODES.map(({ id, key, label, Icon }) => {
+          // Edit modes act on the focused object — select one in Object mode first.
+          const locked = id !== 'object' && !hasActiveObject;
+          return (
+            <button
+              key={id}
+              className={`tb-icon ${component === id ? 'active' : ''}`}
+              title={locked ? `${label} — select an object first` : `${label} (${key})`}
+              aria-pressed={component === id}
+              disabled={locked}
+              onClick={() => setComponent(id)}
+            >
+              <Icon size={16} />
+            </button>
+          );
+        })}
       </div>
       <span className="tb-divider" />
       <div className="mtb-tools">
