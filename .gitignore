@@ -8,3 +8,7 @@ dist-ssr
 
 # local env
 .env
+
+# Python bytecode (skill scripts)
+__pycache__/
+*.pyc
