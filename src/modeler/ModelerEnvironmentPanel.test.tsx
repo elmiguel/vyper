@@ -34,9 +34,9 @@ describe('ModelerEnvironmentPanel', () => {
     expect(screen.getByText('Render')).toBeInTheDocument();
   });
 
-  it('hints to upload an HDR when no environment assets exist', () => {
+  it('hints to import an HDRI when no environment is available', () => {
     render(<ModelerEnvironmentPanel />);
-    expect(screen.getByText(/Upload an .hdr/i)).toBeInTheDocument();
+    expect(screen.getByText(/Import an HDRI/i)).toBeInTheDocument();
   });
 
   it('toggling Lit preview writes to the store', () => {
@@ -54,5 +54,14 @@ describe('ModelerEnvironmentPanel', () => {
   it('carries the .inspector class for shared form theming', () => {
     const { container } = render(<ModelerEnvironmentPanel />);
     expect(container.querySelector('.panel.inspector')).not.toBeNull();
+  });
+
+  it('lists an imported CC0 HDRI as a selectable source and auto-applies it', () => {
+    const url = 'https://cdn.example/env/studio.hdr';
+    useEditorStore.setState((st) => ({ design: { ...st.design, render: { ...st.design.render, environmentUrl: url } } }));
+    render(<ModelerEnvironmentPanel />);
+    expect(screen.getByRole('option', { name: 'Imported HDRI' })).toBeInTheDocument();
+    // A freshly imported HDRI auto-applies to the Studio preview (no second pick needed).
+    expect(env().url).toBe(url);
   });
 });

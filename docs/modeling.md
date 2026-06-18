@@ -164,8 +164,10 @@ asset and material components and adds a Studio-only lighting/environment previe
 - **Environment panel** ([ModelerEnvironmentPanel.tsx](../src/modeler/ModelerEnvironmentPanel.tsx),
   tabbed beside the Inspector) controls a **Studio-only** viewport preview — it never changes
   the shipped game scene:
-  - **Environment (IBL)** — pick an `.hdr`/`.env`/`.dds` from the asset library for image-based
-    lighting + reflections, with an intensity and an optional background skybox.
+  - **Environment (IBL)** — image-based lighting + reflections from an HDRI. Environments come
+    from the **Assets → CC0** importer (which stores the URL on the shared render settings); a
+    freshly imported HDRI auto-applies to the Studio preview. Includes an intensity and an
+    optional background skybox.
   - **Lighting** — key (directional) + fill (hemispheric) intensities.
   - **Render** — **Lit preview (PBR)** swaps the flat modeling material for a `PBRMaterial`
     that reflects the environment and reads the mesh entity's `MaterialConfig`

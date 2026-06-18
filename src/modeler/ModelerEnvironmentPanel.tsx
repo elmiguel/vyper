@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { Globe, Sun, Aperture } from 'lucide-react';
 import { useModelerStore } from './modelerStore';
 import { useEditorStore } from '@/store/editorStore';
@@ -30,15 +30,34 @@ export function ModelerEnvironmentPanel() {
   const env = useModelerStore((s) => s.studioEnv);
   const setEnv = useModelerStore((s) => s.setStudioEnv);
   const assets = useEditorStore((s) => s.assetLibrary.assets);
+  // Environments in this app come from CC0 HDRI imports, which store the URL on the game's
+  // render settings (see Cc0Browser). Offer that here too, plus any uploaded .hdr/.env texture.
+  const importedEnvUrl = useEditorStore((s) => s.design.render?.environmentUrl);
 
-  // Environment textures from the asset library: anything that looks like an HDR/.env/.dds.
-  const envOptions = useMemo(
-    () =>
-      assetsWithTextures(assets)
-        .filter((a) => /\.(hdr|env|dds)$/i.test(a.textures[0] ?? ''))
-        .map((a) => ({ url: `${a.rootUrl ?? ASSET_ROOT}${a.textures[0]}`, name: a.name })),
-    [assets],
-  );
+  const envOptions = useMemo(() => {
+    const opts: Array<{ url: string; name: string }> = [];
+    if (importedEnvUrl) opts.push({ url: importedEnvUrl, name: 'Imported HDRI' });
+    for (const a of assetsWithTextures(assets)) {
+      const file = a.textures[0] ?? '';
+      if (!/\.(hdr|env|dds)$/i.test(file)) continue;
+      const url = `${a.rootUrl ?? ASSET_ROOT}${file}`;
+      if (!opts.some((o) => o.url === url)) opts.push({ url, name: a.name });
+    }
+    // Keep the current selection listed even if its source isn't otherwise enumerated.
+    if (env.url && !opts.some((o) => o.url === env.url)) opts.push({ url: env.url, name: 'Current environment' });
+    return opts;
+  }, [assets, importedEnvUrl, env.url]);
+
+  // Auto-apply a freshly imported HDRI (e.g. from the CC0 browser) to the Studio preview, so
+  // "choose an HDRI → it lights the viewport" works without a second pick. A new import wins;
+  // a manual selection afterward sticks (we only react to a *changed* imported URL).
+  const lastImported = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (importedEnvUrl && importedEnvUrl !== lastImported.current) {
+      lastImported.current = importedEnvUrl;
+      setEnv({ url: importedEnvUrl });
+    }
+  }, [importedEnvUrl, setEnv]);
 
   return (
     <div className="panel inspector modeler-environment">
@@ -56,7 +75,7 @@ export function ModelerEnvironmentPanel() {
             </select>
           </div>
           {envOptions.length === 0 && (
-            <div className="empty-hint inline">Upload an .hdr/.env via the Assets button to light the viewport with it.</div>
+            <div className="empty-hint inline">Import an HDRI from the <strong>Assets</strong> browser (CC0 tab) to light the viewport — it applies here automatically.</div>
           )}
           <Slider label="Intensity" value={env.intensity} min={0} max={3} step={0.05} onChange={(v) => setEnv({ intensity: v })} />
           <label className="field check">
