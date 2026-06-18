@@ -18,6 +18,7 @@ import type { LinesMesh } from '@babylonjs/core/Meshes/linesMesh';
 import type { CustomGeometry } from '@/types';
 import {
   computeNormals,
+  computeBoxUVs,
   buildFaceHighlight,
   buildVertexHighlight,
   buildEdgeHighlight,
@@ -430,6 +431,9 @@ export class ModelerScene {
     vd.positions = geo.positions;
     vd.indices = geo.indices;
     vd.normals = geo.normals.length ? geo.normals : computeNormals(geo);
+    // The kernel produces no UVs, so PBR textures would sample a single texel (flat colour).
+    // Generate box/tri-planar UVs from the geometry so material maps actually show.
+    vd.uvs = geo.uvs?.length ? geo.uvs : computeBoxUVs(geo.positions, vd.normals);
     vd.applyToMesh(mesh, true);
     mesh.material = this.preview.activeMaterial(this.mat);
     this.mesh = mesh;

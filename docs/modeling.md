@@ -177,6 +177,9 @@ asset and material components and adds a Studio-only lighting/environment previe
     additionally forces PBR lighting on meshes that have no material yet (otherwise they keep
     the flat modeling shading). Plus tone mapping + exposure. The choice is the pure
     `usesLitMaterial(litPreview, material)` in [modelerScenePreview.ts](../src/modeler/modelerScenePreview.ts).
+    The kernel produces no UVs, so the viewport auto-generates box / tri-planar UVs
+    (`computeBoxUVs` in [modelerSceneGeom.ts](../src/modeler/modelerSceneGeom.ts)) so texture
+    maps show with detail; a real UV unwrap is still a follow-up.
 
 State lives in `useModelerStore.studioEnv` ([modelerEnvironment.ts](../src/modeler/modelerEnvironment.ts));
 the rendering is applied by [StudioPreview](../src/modeler/modelerScenePreview.ts) (env/IBL,

@@ -37,10 +37,7 @@ function setMap(
   }
   if (cur && cur.name === url) return;
   cur?.dispose();
-  // TEMP diagnostic: surface texture load failures (404 / CORS) for the Studio preview.
-  mat[key] = new Texture(url, scene, undefined, undefined, undefined, undefined, (msg) =>
-    console.error('[studio] texture failed to load', key, url, msg),
-  );
+  mat[key] = new Texture(url, scene);
 }
 
 /**
@@ -133,10 +130,7 @@ export class StudioPreview {
     this.toneMapping(env.tone, env.exposure);
     this.environment(env.url, env.intensity, env.skybox);
     this.lights(env.key, env.fill);
-    const lit = usesLitMaterial(env.litPreview, material);
-    // TEMP diagnostic: does the entity material reach the viewport, and do we go PBR?
-    console.debug('[studio] preview.apply', { lit, hasMaterial: !!material, baseColorMap: material?.baseColorMap, color, envUrl: env.url });
-    this.setLit(lit, color, material);
+    this.setLit(usesLitMaterial(env.litPreview, material), color, material);
   }
 
   /** Which material the model mesh should use right now: the lit PBR one, or `fallback`. */
