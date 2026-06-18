@@ -181,7 +181,11 @@ asset and material components and adds a Studio-only lighting/environment previe
     (`computeBoxUVs` in [modelerSceneGeom.ts](../src/modeler/modelerSceneGeom.ts)) so texture
     maps show with detail; a real UV unwrap is still a follow-up.
 
-State lives in `useModelerStore.studioEnv` ([modelerEnvironment.ts](../src/modeler/modelerEnvironment.ts));
+These settings **persist with the project**: `studioEnv` lives in the design doc
+(`GameDesign.studioEnv`), mirrored from `useModelerStore` on every change via `updateDesign`
+and restored on `init()`, so the Studio reopens exactly as you left it.
+
+State lives in `useModelerStore.studioEnv` (type in [visuals.ts](../src/types/visuals.ts), re-exported from [modelerEnvironment.ts](../src/modeler/modelerEnvironment.ts));
 the rendering is applied by [StudioPreview](../src/modeler/modelerScenePreview.ts) (env/IBL,
 tone mapping, lights, PBR material — mirroring the game's `RenderPipeline`/`materials.ts`
 patterns) on the modeler's own Babylon scene. The island-dimming vertex colours still apply in

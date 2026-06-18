@@ -312,20 +312,27 @@ export const useModelerStore = create<ModelerState>((set, get) => {
         if (component !== 'object' && !active.isSet) return {};
         return { component, selection: [], objectSelected: false, selRevision: s.selRevision + 1 };
       }),
-    setStudioEnv: (patch) => set((s) => ({ studioEnv: { ...s.studioEnv, ...patch } })),
+    setStudioEnv: (patch) => {
+      const studioEnv = { ...get().studioEnv, ...patch };
+      set({ studioEnv });
+      // Mirror into the project design doc so it persists with the project (and marks it dirty).
+      useEditorStore.getState().updateDesign({ studioEnv });
+    },
     setKeymap: (id) => set({ keymap: id }),
     toggleWireframe: () => set((s) => ({ showWireframe: !s.showWireframe })),
     toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
     requestFrame: () => set((s) => ({ frameRequest: s.frameRequest + 1 })),
 
     init: () => {
-      const ent = useEditorStore.getState().entities.find((e) => e.mesh);
+      const d = useEditorStore.getState();
+      const ent = d.entities.find((e) => e.mesh);
       const custom = ent?.mesh?.custom;
       mesh = custom ? fromGeometry(custom) : buildPrimitive('cube', 2);
       stack.clear();
       active.clear(); // nothing focused until the user picks an object
       groups.clear();
-      set((s) => ({ selection: [], objectSelected: false }));
+      // Restore the persisted Studio viewport preview (env/lights/tone) from the project design.
+      set((s) => ({ selection: [], objectSelected: false, studioEnv: d.design?.studioEnv ?? s.studioEnv }));
       rebuild();
     },
 
