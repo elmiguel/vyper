@@ -1,8 +1,11 @@
 import { useEffect } from 'react';
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent } from 'dockview';
 import 'dockview/dist/styles/dockview.css';
-import { Home, Save, Loader2, Boxes } from 'lucide-react';
+import { Home, Save, Loader2, Boxes, Image } from 'lucide-react';
 import { useProjectStore } from '@/store/projectStore';
+import { useEditorStore } from '@/store/editorStore';
+import { AssetBrowser } from '@/assets/AssetBrowser';
+import { AssetViewer } from '@/assets/AssetViewer';
 import { modelerDockComponents, buildModelerLayout } from './modelerPanels';
 
 /**
@@ -17,6 +20,7 @@ export function ModelerLayout() {
   const dirty = useProjectStore((s) => s.dirty);
   const save = useProjectStore((s) => s.save);
   const goHome = useProjectStore((s) => s.goHome);
+  const openAssets = useEditorStore((s) => s.setShowAssetBrowser);
 
   // Cmd/Ctrl+S → save the model.
   useEffect(() => {
@@ -48,6 +52,9 @@ export function ModelerLayout() {
         <span className="modeler-brand"><Boxes size={15} /> Modeling Studio</span>
         <span className="tb-game-name" title={gameName}>{gameName || 'Untitled Model'}</span>
         <div className="modeler-bar-spacer" />
+        <button className="tb-btn" onClick={() => openAssets(true)} title="Asset library: textures & models (for materials)">
+          <Image size={14} /> Assets
+        </button>
         <button
           className={`tb-btn save-btn ${dirty ? 'dirty' : ''}`}
           onClick={() => void save({ snapshot: 'manual' })}
@@ -66,6 +73,10 @@ export function ModelerLayout() {
           onReady={onReady}
         />
       </div>
+      {/* Shared asset library overlays — same components the game editor uses, so textures
+          imported here flow straight into the Inspector's material maps. */}
+      <AssetBrowser />
+      <AssetViewer />
     </div>
   );
 }

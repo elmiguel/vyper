@@ -41,8 +41,11 @@ export function ModelerViewport() {
   const showWireframe = useModelerStore((s) => s.showWireframe);
   const snapToGrid = useModelerStore((s) => s.snapToGrid);
   const editTool = useModelerStore((s) => s.editTool);
-  // Base colour of the model, mirrored from the project mesh entity (edited in the Inspector).
+  // Base colour + material of the model, mirrored from the project mesh entity (Inspector).
   const baseColor = useEditorStore((s) => s.entities.find((e) => e.mesh)?.mesh?.color);
+  const material = useEditorStore((s) => s.entities.find((e) => e.mesh)?.mesh?.material);
+  // Studio-only viewport preview (environment/IBL, lights, tone mapping, lit PBR toggle).
+  const studioEnv = useModelerStore((s) => s.studioEnv);
 
   // Create the scene once, load the model, wire picking, and clean up on unmount.
   useEffect(() => {
@@ -127,6 +130,11 @@ export function ModelerViewport() {
   useEffect(() => {
     if (baseColor) sceneRef.current?.setBaseColor(baseColor);
   }, [baseColor]);
+
+  // Studio environment / lighting / tone / lit-preview → apply to the viewport (Studio-only).
+  useEffect(() => {
+    sceneRef.current?.applyStudioEnv(studioEnv, baseColor ?? '#9aa3b2', material);
+  }, [studioEnv, baseColor, material]);
 
   // Active transform tool → which gizmo the scene shows.
   useEffect(() => {
