@@ -7,6 +7,7 @@ type AssetSlice = Pick<
   | 'loadAssetManifest'
   | 'uploadAssets'
   | 'addAsset'
+  | 'hydrateGeneratedAssets'
   | 'updateAsset'
   | 'removeAsset'
   | 'deleteAsset'
@@ -82,6 +83,12 @@ export function createAssetSlice(set: StoreSet, get: StoreGet): AssetSlice {
     addAsset: (asset) => {
       get().record('addAsset');
       set((s) => ({ assetLibrary: { assets: [...s.assetLibrary.assets, asset] } }));
+    },
+
+    hydrateGeneratedAssets: (assets) => {
+      // Restore project-persisted generated assets (Modeling-Studio objects) on open; merged by
+      // id over the current library. Not an undoable edit, so it doesn't call record().
+      set((s) => ({ assetLibrary: { assets: mergeById(s.assetLibrary.assets, assets) } }));
     },
 
     updateAsset: (id, patch) => {

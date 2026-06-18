@@ -1,4 +1,4 @@
-import type { Vec3, CustomGeometry } from './index';
+import type { Vec3, CustomGeometry, MaterialConfig } from './index';
 
 // Asset library types (3D models & textures). Split out of the main types barrel and
 // re-exported from `@/types`; import these from `@/types` as usual.
@@ -35,6 +35,11 @@ export interface Asset {
   format: string;
   /** Inline baked geometry for a `source: 'generated'` model (no file to load). */
   geometry?: CustomGeometry;
+  /** Full PBR/standard surface for a generated Modeling-Studio object, applied on import so
+   *  the saved object keeps its look. (Distinct from `material`, which is OBJ/glTF overrides.) */
+  meshMaterial?: MaterialConfig;
+  /** Base colour (hex) for a generated object, applied on import. */
+  meshColor?: string;
   /** URL prefix the files are served from. Built-ins default to '/assets/';
    *  uploaded assets use '/uploads/'. */
   rootUrl?: string;

@@ -191,6 +191,26 @@ tone mapping, lights, PBR material — mirroring the game's `RenderPipeline`/`ma
 patterns) on the modeler's own Babylon scene. The island-dimming vertex colours still apply in
 either material mode, so focus shading is unaffected.
 
+### Make asset (export an object to the library)
+
+The Inspector's **Asset** section has a **Make asset** toggle (shown when a whole object is
+selected in Object mode). Checking it exports **just that object** — the focused island — to the
+asset library as a `generated` model:
+
+- The island's geometry is extracted on its own (`extractFacesGeometry` in
+  [render.ts](../src/kernel/render.ts)), carrying the mesh's **material + colour**
+  (`saveModelerObjectAsset`), and any texture maps it uses are ensured in the library too (so
+  custom textures travel with it).
+- The link is remembered on the entity (`mesh.objectAssets`, keyed by the island's centroid), so
+  the toggle reflects state; unchecking removes the asset + link.
+- **Generated assets persist with the project** now (`settings.generatedAssets`, hydrated on
+  open via `hydrateGeneratedAssets`) — previously they were in-memory only and lost on reload.
+  Re-importing into the game studio drops in an editable copy with its material applied.
+
+> Follow-up (not yet built): a **Make reference** toggle so game-studio instances stay linked
+> to the source object and update on load (a proxy/linked-asset system) — this PR is the
+> "copy import" half; the linked half is the next phase.
+
 ### Project thumbnail
 
 The Studio captures a project cover the same way the game editor does. The shared

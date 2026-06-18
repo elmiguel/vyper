@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Move3D, RotateCw, Scaling, Palette } from 'lucide-react';
+import { Move3D, RotateCw, Scaling, Palette, PackagePlus } from 'lucide-react';
 import { useModelerStore } from './modelerStore';
 import { useEditorStore } from '@/store/editorStore';
 import { NumberInput } from '@/ui/NumberInput';
@@ -40,6 +40,13 @@ export function ModelerInspector() {
   // The project entity the modeler mirrors its geometry into — it also carries colour + material.
   const entity = useEditorStore((s) => s.entities.find((e) => e.mesh));
   const updateMesh = useEditorStore((s) => s.updateMesh);
+
+  // "Make asset": export the focused object (Object mode) to the asset library; the toggle
+  // reflects whether a linked asset exists for it.
+  const makeAsset = useModelerStore((s) => s.makeSelectedObjectAsset);
+  const removeAsset = useModelerStore((s) => s.removeSelectedObjectAsset);
+  const assetId = useModelerStore((s) => s.selectedObjectAssetId)();
+  const objectSelected = component === 'object' && selection.length > 0;
 
   // Rotation is dialed as an absolute angle per axis *for the current selection*: we apply the
   // delta to the mesh and reset the dial whenever the selection (or mode) changes, since the
@@ -107,6 +114,29 @@ export function ModelerInspector() {
             </>
           ) : (
             <div className="empty-hint">No mesh to shade yet.</div>
+          )}
+        </div>
+
+        <div className="studio-section">
+          <div className="studio-label"><PackagePlus size={13} /> Asset</div>
+          {objectSelected ? (
+            <>
+              <label className="field check">
+                <input
+                  type="checkbox"
+                  checked={!!assetId}
+                  onChange={(e) => (e.target.checked ? makeAsset() : removeAsset())}
+                />
+                Make asset (save to library)
+              </label>
+              <div className="empty-hint inline">
+                {assetId
+                  ? 'Saved to the asset library with its material + textures — reusable in the game studio.'
+                  : 'Saves just this object (geometry + material + textures) to the asset library.'}
+              </div>
+            </>
+          ) : (
+            <div className="empty-hint">Select an object (Object mode) to save it as an asset.</div>
           )}
         </div>
       </div>

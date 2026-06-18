@@ -22,6 +22,38 @@ export function toGeometry(mesh: HalfEdgeMesh): CustomGeometry {
     polygons.push(mesh.faceVertices(f).map((vi) => remap.get(vi)!));
   }
 
+  return { ...bakePolygons(polyVerts, polygons), polyVerts, polygons };
+}
+
+/**
+ * Bake a subset of the mesh — the given kernel face ids — into its own {@link CustomGeometry},
+ * re-indexing only the vertices those faces use. Used by the Modeling Studio to export a single
+ * focused object (island) as a standalone asset. Removed/missing faces are skipped.
+ */
+export function extractFacesGeometry(mesh: HalfEdgeMesh, faceIds: Iterable<number>): CustomGeometry {
+  const remap = new Map<number, number>();
+  const polyVerts: number[] = [];
+  const polygons: number[][] = [];
+  for (const f of faceIds) {
+    if (!mesh.faces[f] || mesh.faces[f].removed) continue;
+    polygons.push(
+      mesh.faceVertices(f).map((vi) => {
+        let d = remap.get(vi);
+        if (d === undefined) {
+          d = polyVerts.length / 3;
+          remap.set(vi, d);
+          const p = mesh.vertices[vi].position;
+          polyVerts.push(p[0], p[1], p[2]);
+        }
+        return d;
+      }),
+    );
+  }
+  return { ...bakePolygons(polyVerts, polygons), polyVerts, polygons };
+}
+
+/** Fan-triangulate welded polygons into flat-shaded render arrays (positions/normals/indices). */
+function bakePolygons(polyVerts: number[], polygons: number[][]): { positions: number[]; normals: number[]; indices: number[] } {
   const positions: number[] = [];
   const normals: number[] = [];
   const indices: number[] = [];
@@ -37,7 +69,7 @@ export function toGeometry(mesh: HalfEdgeMesh): CustomGeometry {
       indices.push(base, base + 1, base + 2);
     }
   }
-  return { positions, indices, normals, polyVerts, polygons };
+  return { positions, normals, indices };
 }
 
 /**

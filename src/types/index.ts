@@ -144,6 +144,9 @@ export interface MeshConfig {
    *  and trigger-volume overlap. Absent/undefined counts as collidable (the
    *  default), so existing scenes and newly-created meshes collide as before. */
   collision?: boolean;
+  /** Modeling Studio: maps a focused object's island key (rounded centroid) → the library
+   *  asset id it was exported to via the "Make asset" toggle. Drives the toggle's state. */
+  objectAssets?: Record<string, string>;
 }
 
 /** True when a mesh participates in world collision (physics + triggers). No mesh

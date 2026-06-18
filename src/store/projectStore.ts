@@ -3,7 +3,7 @@ import { nanoid } from 'nanoid';
 import { api, type GameSummary, type SceneMeta, type ScriptRow, type VersionMeta } from '@/data';
 import { useEditorStore, starterEntities } from './editorStore';
 import { applyAutoCover, captureViewportCover, resetAutoCover } from './projectCover';
-import type { Entity, GameDesign, GameMode, MaterialPreset, PrefabDef, Script } from '@/types';
+import type { Asset, Entity, GameDesign, GameMode, MaterialPreset, PrefabDef, Script } from '@/types';
 import { emptyDesign } from '@/types';
 
 /** A fresh modeling project starts from one editable box at the origin. */
@@ -41,6 +41,12 @@ export function designOf(settings: Record<string, unknown> | undefined): GameDes
 /** Read the prefab library off a game's settings blob (defaults to empty). */
 export function prefabsOf(settings: Record<string, unknown> | undefined): Record<string, PrefabDef> {
   return (settings?.prefabs as Record<string, PrefabDef> | undefined) ?? {};
+}
+
+/** Read project-persisted generated assets (Modeling-Studio objects + their textures) off the
+ *  settings blob (defaults to none). */
+export function generatedAssetsOf(settings: Record<string, unknown> | undefined): Asset[] {
+  return (settings?.generatedAssets as Asset[] | undefined) ?? [];
 }
 
 /** Read the saved material presets off a game's settings blob (defaults to empty). */
@@ -234,6 +240,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       useEditorStore.getState().hydrateDesign(designOf(detail.game.settings));
       useEditorStore.getState().hydratePrefabs(prefabsOf(detail.game.settings));
       useEditorStore.getState().hydrateMaterialPresets(materialsOf(detail.game.settings));
+      useEditorStore.getState().hydrateGeneratedAssets(generatedAssetsOf(detail.game.settings));
       useEditorStore.getState().hydrateWorkspace(workspaceOf(detail.game.settings));
       useEditorStore.getState().hydrateScripts(rowsToScripts(detail.scripts));
       const scene = await api.getScene(sceneId);
@@ -323,7 +330,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // over the last-known blob so we never drop other keys.
       // Models keep their 'model' kind; games store their 2D/3D authoring mode.
       const projectKind = isModelProject(get().gameSettings) ? 'model' : ed.mode;
-      const settings: Record<string, unknown> = { ...get().gameSettings, kind: projectKind, design: ed.design, prefabs: ed.prefabs, materials: ed.materialPresets, workspace: ed.workspace };
+      const settings: Record<string, unknown> = { ...get().gameSettings, kind: projectKind, design: ed.design, prefabs: ed.prefabs, materials: ed.materialPresets, workspace: ed.workspace, generatedAssets: ed.assetLibrary.assets.filter((a) => a.source === 'generated') };
       // Auto-cover: on the first save with no cover assigned, grab a viewport thumbnail so the
       // home-screen card isn't blank — captured at most once per session, never over an
       // existing cover (see applyAutoCover). Games only auto-capture on autosaves (manual saves
