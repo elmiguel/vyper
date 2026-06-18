@@ -37,6 +37,18 @@ describe('duplicateEntity', () => {
     expect(copy.scriptIds[0]).not.toBe(sid);
     expect(s().scripts[copy.scriptIds[0]]).toBeTruthy();
   });
+
+  it('tolerates a stale scriptId with no matching script (skips it, no throw)', () => {
+    const id = s().addPrimitive('box');
+    // Simulate a dangling reference (e.g. from undo/redo or partial hydration).
+    const ent = s().entities.find((e) => e.id === id)!;
+    useEditorStore.setState({
+      entities: s().entities.map((e) => (e.id === id ? { ...ent, scriptIds: ['ghost-script'] } : e)),
+    });
+    expect(() => s().duplicateEntity(id)).not.toThrow();
+    const copy = s().entities[1];
+    expect(copy.scriptIds).toHaveLength(0); // dangling ref dropped, not carried over
+  });
 });
 
 describe('copy + paste', () => {
