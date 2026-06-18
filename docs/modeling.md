@@ -171,10 +171,12 @@ asset and material components and adds a Studio-only lighting/environment previe
     freshly imported HDRI auto-applies to the Studio preview. Includes an intensity and an
     optional background skybox.
   - **Lighting** — key (directional) + fill (hemispheric) intensities.
-  - **Render** — **Lit preview (PBR)** swaps the flat modeling material for a `PBRMaterial`
-    that reflects the environment and reads the mesh entity's `MaterialConfig`
-    (metallic/roughness/emissive/maps) — true PBR preview in the Studio. Off by default (no
-    change to the classic flat shading). Plus tone mapping + exposure.
+  - **Render** — a mesh renders with its real `PBRMaterial` (reflecting the environment +
+    reading its `MaterialConfig`: metallic/roughness/emissive/maps) **as soon as a material is
+    assigned**, so textures preview with no extra step. **Lit shading on plain meshes**
+    additionally forces PBR lighting on meshes that have no material yet (otherwise they keep
+    the flat modeling shading). Plus tone mapping + exposure. The choice is the pure
+    `usesLitMaterial(litPreview, material)` in [modelerScenePreview.ts](../src/modeler/modelerScenePreview.ts).
 
 State lives in `useModelerStore.studioEnv` ([modelerEnvironment.ts](../src/modeler/modelerEnvironment.ts));
 the rendering is applied by [StudioPreview](../src/modeler/modelerScenePreview.ts) (env/IBL,

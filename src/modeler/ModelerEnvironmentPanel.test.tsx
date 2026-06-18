@@ -39,9 +39,9 @@ describe('ModelerEnvironmentPanel', () => {
     expect(screen.getByText(/Import an HDRI/i)).toBeInTheDocument();
   });
 
-  it('toggling Lit preview writes to the store', () => {
+  it('toggling Lit shading writes to the store', () => {
     render(<ModelerEnvironmentPanel />);
-    fireEvent.click(screen.getByLabelText(/Lit preview/i));
+    fireEvent.click(screen.getByLabelText(/Lit shading/i));
     expect(env().litPreview).toBe(true);
   });
 

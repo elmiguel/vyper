@@ -94,8 +94,9 @@ export function ModelerEnvironmentPanel() {
           <div className="studio-label"><Aperture size={13} /> Render</div>
           <label className="field check">
             <input type="checkbox" checked={env.litPreview} onChange={(e) => setEnv({ litPreview: e.target.checked })} />
-            Lit preview (PBR materials)
+            Lit shading on plain meshes
           </label>
+          <div className="empty-hint inline">Assigned materials always preview here; this also lights meshes that have no material yet.</div>
           <div className="field">
             <span className="field-label">Tone</span>
             <select value={env.tone} onChange={(e) => setEnv({ tone: e.target.value as StudioTone })}>

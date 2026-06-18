@@ -14,6 +14,15 @@ import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { StudioTone, StudioEnv } from './modelerEnvironment';
 import type { MaterialConfig } from '@/types';
 
+/**
+ * Whether the model should render with its PBR material. True whenever a material is assigned
+ * (so textures/maps preview without any toggle), or when `litPreview` forces lit shading on a
+ * material-less mesh (to see environment lighting on a plain colour).
+ */
+export function usesLitMaterial(litPreview: boolean, material?: MaterialConfig): boolean {
+  return litPreview || !!material;
+}
+
 /** Set/reuse/clear one PBR texture slot by URL (disposes the previous one when it changes). */
 function setMap(
   mat: PBRMaterial,
@@ -113,12 +122,15 @@ export class StudioPreview {
   }
 
   /** Apply every preview setting at once from the store's {@link StudioEnv} + the mesh's base
-   *  colour and optional material config (tone → environment → lights → lit material). */
+   *  colour and optional material config (tone → environment → lights → lit material). The mesh
+   *  renders with its real PBR material whenever one is assigned (so textures/maps show without
+   *  a separate toggle); the `litPreview` flag additionally forces PBR for material-less meshes
+   *  (e.g. to see environment lighting on a plain colour). */
   apply(env: StudioEnv, color: string, material?: MaterialConfig): void {
     this.toneMapping(env.tone, env.exposure);
     this.environment(env.url, env.intensity, env.skybox);
     this.lights(env.key, env.fill);
-    this.setLit(env.litPreview, color, material);
+    this.setLit(usesLitMaterial(env.litPreview, material), color, material);
   }
 
   /** Which material the model mesh should use right now: the lit PBR one, or `fallback`. */
