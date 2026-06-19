@@ -68,6 +68,26 @@ export function reactToPlayState(prev: PlayState, next: PlayState) {
   }
 }
 
+/**
+ * Force the dock to re-layout after a rebuild. `applyPreset`/`fromJSON` clear and recreate every
+ * panel; the new panels can mount before dockview assigns them a size, so they paint blank until
+ * something triggers a reflow (which is why nudging the window "fixes" it). We do that nudge
+ * ourselves on the next frame: re-run dockview's layout at the current container size, and emit a
+ * window resize so each viewport's ResizeObserver re-syncs its Babylon view too.
+ */
+function reflowDock() {
+  if (typeof requestAnimationFrame === 'undefined') return;
+  requestAnimationFrame(() => {
+    if (!api) return;
+    try {
+      if (api.width > 0 && api.height > 0) api.layout(api.width, api.height, true);
+    } catch {
+      /* older dockview without forced layout — the resize event below still reflows it */
+    }
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('resize'));
+  });
+}
+
 /** Apply a preset by id — a built-in (rebuilt from its builder) or a saved custom layout. */
 export function activatePreset(id: string) {
   if (!api) return;
@@ -80,6 +100,7 @@ export function activatePreset(id: string) {
     api.fromJSON(custom.layout);
   }
   useEditorStore.getState().setActivePreset(id);
+  reflowDock();
 }
 
 /** Restore the Default arrangement. */
