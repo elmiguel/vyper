@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { emptyAssetLibrary, emptyDesign, defaultBrush } from '@/types';
 import type { EditorState } from './editorTypes';
+import { hmrSingleton } from './hmrStore';
 import { DEFAULT_GAME_CAMERA, defaultEntities } from './editorDefaults';
 import { createUiSlice } from './slices/uiSlice';
 import { createHistorySlice } from './slices/historySlice';
@@ -28,7 +29,7 @@ export type { EditorState } from './editorTypes';
  * operates on the full EditorState, so cross-slice calls (e.g. record() before an
  * edit) work exactly as in a monolithic store.
  */
-export const useEditorStore = create<EditorState>((set, get) => ({
+export const useEditorStore = hmrSingleton('editor', () => create<EditorState>((set, get) => ({
   mode: '3d',
   entities: defaultEntities(),
   scripts: {},
@@ -83,4 +84,4 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   ...createWorkspaceSlice(set),
   ...createMeshEditSlice(set, get),
   ...createRigSlice(set, get),
-}));
+})));

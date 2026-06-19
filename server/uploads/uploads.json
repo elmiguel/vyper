@@ -262,5 +262,49 @@
     "textures": [
       "brown_planks_03_ao_1k.jpg"
     ]
+  },
+  {
+    "id": "asphalt_02_diff_1k",
+    "name": "asphalt_02_diff_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "asphalt_02_diff_1k.jpg"
+    ]
+  },
+  {
+    "id": "asphalt_02_nor_gl_1k",
+    "name": "asphalt_02_nor_gl_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "asphalt_02_nor_gl_1k.jpg"
+    ]
+  },
+  {
+    "id": "asphalt_02_rough_1k",
+    "name": "asphalt_02_rough_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "asphalt_02_rough_1k.jpg"
+    ]
+  },
+  {
+    "id": "asphalt_02_ao_1k",
+    "name": "asphalt_02_ao_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "asphalt_02_ao_1k.jpg"
+    ]
   }
 ]

@@ -89,13 +89,18 @@ export function MaterialEditor({ entity, disabled }: { entity: Entity; disabled?
         <select
           value=""
           disabled={disabled}
-          onChange={(e) => { if (e.target.value) applyPreset(entity.id, e.target.value); }}
+          onChange={(e) => {
+            if (e.target.value === BROWSE) openAssets(true);
+            else if (e.target.value) applyPreset(entity.id, e.target.value);
+          }}
         >
           <option value="">{presetList.length ? 'Apply a material…' : 'No saved materials'}</option>
           {presetList.map((p) => (
             <option key={p.id} value={p.id}>{p.name}</option>
           ))}
+          <option value={BROWSE}>Browse assets…</option>
         </select>
+        <button className="field-btn" disabled={disabled} title="Browse the asset library — import a material / textures" onClick={() => openAssets(true)}>Browse</button>
         <button className="field-btn" disabled={disabled} title="Save this mesh's material as a reusable preset" onClick={onSave}>Save</button>
       </div>
 
