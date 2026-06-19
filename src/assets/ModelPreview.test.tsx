@@ -45,6 +45,9 @@ const animGroups: { name: string }[] = [];
 vi.mock('@babylonjs/core/Loading/sceneLoader', () => ({
   SceneLoader: { ImportMeshAsync: vi.fn(async () => ({ meshes: [], animationGroups: animGroups.map((g) => ({ ...g, stop() {}, play() {}, pause() {} })) })) },
 }));
+vi.mock('@babylonjs/core/Materials/standardMaterial', () => ({ StandardMaterial: class { diffuseColor = null; backFaceCulling = true; } }));
+vi.mock('@/babylon/customMesh', () => ({ buildCustomMesh: vi.fn(() => ({ parent: null, material: null, isVisible: true })) }));
+vi.mock('@babylonjs/core/Materials/Textures/texture', () => ({ Texture: class { constructor(public name: string) {} } }));
 
 import { ModelPreview } from './ModelPreview';
 
@@ -69,5 +72,17 @@ describe('ModelPreview', () => {
     const btn = await screen.findByRole('button', { name: /Walk/ });
     fireEvent.click(btn); // play → pause toggle should not throw
     expect(btn).toBeInTheDocument();
+  });
+
+  it('renders a generated mesh from inline geometry (no file) instead of hanging on Loading', async () => {
+    const gen: Asset = {
+      id: 'gen1', name: 'Mesh', type: 'model', source: 'generated', format: 'mesh',
+      textures: [], meshColor: '#abcdef',
+      geometry: { positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2], normals: [] },
+    };
+    render(<ModelPreview asset={gen} />);
+    // Reaches "ready" (no file load): shows the static-format readout, not the spinner.
+    await waitFor(() => expect(screen.getByText(/MESH is a static format/i)).toBeInTheDocument());
+    expect(screen.queryByText(/Loading/i)).not.toBeInTheDocument();
   });
 });

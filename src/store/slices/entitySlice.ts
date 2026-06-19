@@ -56,7 +56,7 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
       // editable custom mesh; file-backed models reference the asset id for the loader.
       const mesh =
         asset?.source === 'generated' && asset.geometry
-          ? { kind: 'custom' as const, color: nextColor(), visible: true, custom: asset.geometry }
+          ? { kind: 'custom' as const, color: asset.meshColor ?? nextColor(), visible: true, custom: asset.geometry, material: asset.meshMaterial }
           : { kind: 'model' as const, assetId, color: '#ffffff', visible: true };
       const e = makeEntity({
         name,

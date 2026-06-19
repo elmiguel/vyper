@@ -5,8 +5,11 @@ import { HemisphericLight } from '@babylonjs/core/Lights/hemisphericLight';
 import { Vector3, Color3 } from '@babylonjs/core/Maths/math';
 import { Color4 } from '@babylonjs/core/Maths/math.color';
 import { SceneLoader } from '@babylonjs/core/Loading/sceneLoader';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import '@/babylon/loaders'; // register OBJ/glTF (idempotent)
 import type { Asset } from '@/types';
+import { buildCustomMesh } from '@/babylon/customMesh';
 
 const ASSET_ROOT = '/assets/';
 /** Resolved data-URL per asset id (or a rejected promise on failure). */
@@ -22,8 +25,14 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 
 /** Render one frame of a model into an offscreen canvas and capture it as a PNG
  *  data URL. The engine/scene are fully disposed before returning. */
+const hexToColor3 = (hex: string) => {
+  const n = parseInt(hex.replace('#', ''), 16);
+  return new Color3(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+};
+
 async function renderThumbnail(asset: Asset, size: number): Promise<string> {
-  if (!asset.modelFile) throw new Error('asset has no model file');
+  const isGenerated = asset.source === 'generated' && !!asset.geometry;
+  if (!isGenerated && !asset.modelFile) throw new Error('asset has no model file');
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const engine = new Engine(canvas, true, { preserveDrawingBuffer: true });
@@ -35,7 +44,18 @@ async function renderThumbnail(asset: Asset, size: number): Promise<string> {
     light.intensity = 1.1;
     light.groundColor = new Color3(0.3, 0.3, 0.4);
 
-    await SceneLoader.ImportMeshAsync(null, asset.rootUrl ?? ASSET_ROOT, asset.modelFile, scene);
+    if (isGenerated) {
+      const mesh = buildCustomMesh(scene, `gen-${asset.id}`, asset.geometry!);
+      const mat = new StandardMaterial('gen-mat', scene);
+      const m = asset.meshMaterial;
+      if (m?.baseColorMap) mat.diffuseTexture = new Texture(m.baseColorMap, scene);
+      else mat.diffuseColor = hexToColor3(asset.meshColor ?? '#cccccc');
+      mat.backFaceCulling = false;
+      mat.twoSidedLighting = true;
+      mesh.material = mat;
+    } else {
+      await SceneLoader.ImportMeshAsync(null, asset.rootUrl ?? ASSET_ROOT, asset.modelFile!, scene);
+    }
     const { min, max } = scene.getWorldExtends((m) => m.isVisible !== false);
     camera.setTarget(min.add(max).scale(0.5));
     camera.radius = (max.subtract(min).length() || 2) * 1.35;

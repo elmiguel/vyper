@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
-import type { Asset, CustomGeometry, SculptBrushParams } from '@/types';
+import type { Asset, CustomGeometry, MaterialConfig, SculptBrushParams } from '@/types';
 import type { EditorState, MeshComponentMode, MeshEditTool, StoreSet, StoreGet } from '../editorTypes';
+import { ASSET_ROOT } from './assetSlice';
 
 type MeshEditSlice = Pick<
   EditorState,
@@ -12,7 +13,37 @@ type MeshEditSlice = Pick<
   | 'setMeshSelection'
   | 'commitMeshGeometry'
   | 'saveMeshToLibrary'
+  | 'saveModelerObjectAsset'
 >;
+
+/** Texture-map URLs referenced by a material (base/normal/rough/AO/emissive). */
+function materialMapUrls(m: MaterialConfig | undefined): string[] {
+  if (!m) return [];
+  return [m.baseColorMap, m.normalMap, m.roughnessMap, m.aoMap, m.emissiveMap].filter((u): u is string => !!u);
+}
+
+/** The served URL of a texture asset (rootUrl + first texture filename). */
+function textureUrlOf(a: Asset): string {
+  return `${a.rootUrl ?? ASSET_ROOT}${a.textures[0] ?? ''}`;
+}
+
+/** A lightweight texture asset for a served URL not already in the library (so an object's
+ *  custom maps travel with it). Splits the URL into a root + filename. */
+function textureAssetFromUrl(url: string): Asset {
+  const slash = url.lastIndexOf('/');
+  const rootUrl = slash >= 0 ? url.slice(0, slash + 1) : ASSET_ROOT;
+  const file = slash >= 0 ? url.slice(slash + 1) : url;
+  const dot = file.lastIndexOf('.');
+  return {
+    id: `gen-tex-${nanoid(8)}`,
+    name: file || 'Texture',
+    type: 'texture',
+    source: 'generated',
+    format: dot >= 0 ? file.slice(dot + 1) : 'png',
+    rootUrl,
+    textures: [file],
+  };
+}
 
 /** The Modeling Studio's polygon Edit Mode. State here is view/session state — the
  *  scene's MeshEditController owns the live geometry and reports selection back via
@@ -68,6 +99,33 @@ export function createMeshEditSlice(set: StoreSet, get: StoreGet): MeshEditSlice
         geometry: geo,
       };
       get().addAsset(asset);
+      return id;
+    },
+
+    saveModelerObjectAsset: (name, geo, material, color) => {
+      const id = `gen-${nanoid(8)}`;
+      const maps = materialMapUrls(material);
+      // The texture viewer resolves `rootUrl + filename`, so derive the root from the maps
+      // (they live under /uploads or /assets, not the default) — otherwise the images 404.
+      const rootUrl = maps.length ? maps[0].slice(0, maps[0].lastIndexOf('/') + 1) : undefined;
+      const asset: Asset = {
+        id,
+        name: name || 'Object',
+        type: 'model',
+        source: 'generated',
+        format: 'mesh',
+        rootUrl,
+        textures: maps.map((u) => u.slice(u.lastIndexOf('/') + 1)),
+        geometry: geo,
+        meshMaterial: material,
+        meshColor: color,
+      };
+      get().addAsset(asset);
+      // Ensure any texture the object uses is itself in the library (custom maps travel with it).
+      const have = new Set(get().assetLibrary.assets.filter((a) => a.type === 'texture').map(textureUrlOf));
+      for (const url of maps) {
+        if (!have.has(url)) get().addAsset(textureAssetFromUrl(url));
+      }
       return id;
     },
   };

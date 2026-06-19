@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
+import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import { Scene } from '@babylonjs/core/scene';
+import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { Entity } from '@/types';
-import { desiredMatKind } from './materials';
+import { desiredMatKind, syncEntityMaterial } from './materials';
 
 const ent = (over: Partial<Entity> = {}): Entity =>
   ({
@@ -35,5 +38,23 @@ describe('desiredMatKind', () => {
   it("uses PBR for an explicit 'pbr' shading choice", () => {
     const e = ent({ mesh: { kind: 'box', color: '#fff', visible: true, material: { shading: 'pbr', metallic: 1, roughness: 0.2 } } });
     expect(desiredMatKind(e, '3d')).toBe('pbr');
+  });
+});
+
+describe('syncEntityMaterial double-siding', () => {
+  it('renders kernel custom meshes double-sided, primitives single-sided', () => {
+    const engine = new NullEngine();
+    const scene = new Scene(engine);
+
+    const custom = new Mesh('custom', scene);
+    syncEntityMaterial(scene, custom, ent({ mesh: { kind: 'custom', color: '#fff', visible: true } }), '3d', undefined);
+    expect(custom.material!.backFaceCulling).toBe(false);
+
+    const prim = new Mesh('prim', scene);
+    syncEntityMaterial(scene, prim, ent(), '3d', undefined);
+    expect(prim.material!.backFaceCulling).toBe(true);
+
+    scene.dispose();
+    engine.dispose();
   });
 });

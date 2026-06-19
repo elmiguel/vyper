@@ -13,6 +13,7 @@ import type { KnifePoint } from '@/kernel/operations/knife';
 import { createEditActions, type Clip, type EditActionsCtx } from './modelerEditActions';
 import { createTransformActions } from './modelerTransformActions';
 import { createInspectorActions } from './modelerInspectorActions';
+import { createAssetActions } from './modelerAssetActions';
 import { createMeshActions, type MeshActions } from './modelerMeshActions';
 import { defaultStudioEnv, type StudioEnv } from './modelerEnvironment';
 import { useEditorStore } from '@/store/editorStore';
@@ -82,11 +83,16 @@ export interface ModelerState extends MeshActions {
   snapToGrid: boolean;
   /** Active interactive edit tool (loop cut / knife), or 'none' for normal select/gizmo. */
   editTool: EditTool;
-  /** Studio-only viewport preview: environment/IBL, key/fill light levels, tone mapping, and
-   *  the lit (PBR) preview toggle. Does not affect the game scene. */
+  /** Studio-only viewport preview (env/IBL, key/fill lights, tone, lit toggle); not the game. */
   studioEnv: StudioEnv;
   /** Patch the Studio viewport preview settings (environment / lighting / tone / lit preview). */
   setStudioEnv: (patch: Partial<StudioEnv>) => void;
+  /** Export the focused object (island) to the asset library; returns its asset id, or null. */
+  makeSelectedObjectAsset: () => string | null;
+  /** Remove the focused object's library asset + its link. */
+  removeSelectedObjectAsset: () => void;
+  /** The asset id the focused object is linked to (drives the "Make asset" toggle), or null. */
+  selectedObjectAssetId: () => string | null;
   setTool: (tool: ModelerTool) => void;
   /** Activate/clear an interactive edit tool; toggling the active one returns to 'none'. */
   setEditTool: (tool: EditTool) => void;
@@ -451,6 +457,7 @@ export const useModelerStore = create<ModelerState>((set, get) => {
 
     ...createTransformActions(editCtx),
     ...createInspectorActions(editCtx),
+    ...createAssetActions(editCtx),
   };
 });
 

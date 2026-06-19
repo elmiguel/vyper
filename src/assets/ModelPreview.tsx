@@ -7,12 +7,15 @@ import { TransformNode } from '@babylonjs/core/Meshes/transformNode';
 import { Vector3, Color3 } from '@babylonjs/core/Maths/math';
 import { Color4 } from '@babylonjs/core/Maths/math.color';
 import { SceneLoader } from '@babylonjs/core/Loading/sceneLoader';
+import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Play, Pause, Loader2, AlertTriangle } from 'lucide-react';
 import '@/babylon/loaders'; // ensure OBJ/glTF loaders are registered (idempotent)
 import { defaultImportTransform, type Asset } from '@/types';
 import { ASSET_ROOT } from '@/store/slices/assetSlice';
+import { buildCustomMesh } from '@/babylon/customMesh';
 import { computeModelTransform, type Bounds } from './modelTransform';
 
 const DEG = Math.PI / 180;
@@ -49,7 +52,10 @@ export function ModelPreview({ asset }: { asset: Asset }) {
   // ----- Load (engine lifecycle) — re-runs only when the asset file changes. -----
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !asset.modelFile) return;
+    // Generated Modeling-Studio assets carry inline geometry (no file); everything else loads
+    // its model file. Bail only when there's nothing to show either way.
+    const isGenerated = asset.source === 'generated' && !!asset.geometry;
+    if (!canvas || (!isGenerated && !asset.modelFile)) return;
     setStatus('loading');
     setError('');
     setGroups([]);
@@ -73,24 +79,43 @@ export function ModelPreview({ asset }: { asset: Asset }) {
     ro.observe(canvas);
 
     let disposed = false;
-    SceneLoader.ImportMeshAsync(null, asset.rootUrl ?? ASSET_ROOT, asset.modelFile, scene)
-      .then((result) => {
-        if (disposed) return;
-        const root = new TransformNode('asset-root', scene);
-        result.meshes.filter((m) => !m.parent).forEach((m) => (m.parent = root));
-        meshesRef.current = result.meshes;
-        rootRef.current = root;
-        boundsRef.current = scene.getWorldExtends((m) => m.isVisible !== false); // raw, pre-transform
-        groupsRef.current = result.animationGroups;
-        result.animationGroups.forEach((g) => g.stop());
-        setGroups(result.animationGroups.map((g) => g.name));
-        setStatus('ready');
-      })
-      .catch((err: unknown) => {
-        if (disposed) return;
-        setError(err instanceof Error ? err.message : String(err));
-        setStatus('error');
-      });
+    const onReady = (meshes: AbstractMesh[], animationGroups: AnimationGroup[]) => {
+      if (disposed) return;
+      const root = new TransformNode('asset-root', scene);
+      meshes.filter((m) => !m.parent).forEach((m) => (m.parent = root));
+      meshesRef.current = meshes;
+      rootRef.current = root;
+      boundsRef.current = scene.getWorldExtends((m) => m.isVisible !== false); // raw, pre-transform
+      groupsRef.current = animationGroups;
+      animationGroups.forEach((g) => g.stop());
+      setGroups(animationGroups.map((g) => g.name));
+      setStatus('ready');
+    };
+
+    if (isGenerated) {
+      // Build straight from the inline baked geometry — no file/loader involved. Preview with a
+      // lit, double-sided StandardMaterial showing the base-colour (+ normal) texture: PBR here
+      // would need IBL to not render near-black, and kernel geometry isn't single-sided-clean.
+      const mesh = buildCustomMesh(scene, `gen-${asset.id}`, asset.geometry!);
+      const mat = new StandardMaterial('gen-mat', scene);
+      const m = asset.meshMaterial;
+      if (m?.baseColorMap) mat.diffuseTexture = new Texture(m.baseColorMap, scene);
+      else mat.diffuseColor = hexToColor3(asset.meshColor ?? '#cccccc');
+      if (m?.normalMap) mat.bumpTexture = new Texture(m.normalMap, scene);
+      mat.specularColor = new Color3(0.1, 0.1, 0.1);
+      mat.backFaceCulling = false;
+      mat.twoSidedLighting = true; // light both sides correctly (kernel winding isn't uniform)
+      mesh.material = mat;
+      onReady([mesh], []);
+    } else {
+      SceneLoader.ImportMeshAsync(null, asset.rootUrl ?? ASSET_ROOT, asset.modelFile!, scene)
+        .then((result) => onReady(result.meshes, result.animationGroups))
+        .catch((err: unknown) => {
+          if (disposed) return;
+          setError(err instanceof Error ? err.message : String(err));
+          setStatus('error');
+        });
+    }
 
     return () => {
       disposed = true;

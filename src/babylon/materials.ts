@@ -47,6 +47,12 @@ function applyPbr(scene: Scene, mesh: AbstractMesh, e: Entity) {
     : Color3.Black();
   mesh.layerMask = DEFAULT_LAYER;
   mesh.visibility = 1;
+  // Kernel-built custom meshes (Modeling Studio / CSG / sculpt) don't have uniformly outward
+  // winding, so render them double-sided (the modeler shows them double-sided too) — otherwise
+  // back-face culling makes them read inside-out.
+  const twoSided = e.mesh?.kind === 'custom';
+  mat.backFaceCulling = !twoSided;
+  mat.twoSidedLighting = twoSided;
 
   setMap(mat, 'albedoTexture', m?.baseColorMap ?? null, scene);
   setMap(mat, 'bumpTexture', m?.normalMap ?? null, scene);

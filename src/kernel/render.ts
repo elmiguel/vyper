@@ -22,6 +22,59 @@ export function toGeometry(mesh: HalfEdgeMesh): CustomGeometry {
     polygons.push(mesh.faceVertices(f).map((vi) => remap.get(vi)!));
   }
 
+  return { ...bakePolygons(polyVerts, polygons), polyVerts, polygons };
+}
+
+/**
+ * Bake a subset of the mesh — the given kernel face ids — into its own {@link CustomGeometry},
+ * re-indexing only the vertices those faces use. Used by the Modeling Studio to export a single
+ * focused object (island) as a standalone asset. Removed/missing faces are skipped.
+ */
+export function extractFacesGeometry(mesh: HalfEdgeMesh, faceIds: Iterable<number>): CustomGeometry {
+  const remap = new Map<number, number>();
+  const polyVerts: number[] = [];
+  const polygons: number[][] = [];
+  for (const f of faceIds) {
+    if (!mesh.faces[f] || mesh.faces[f].removed) continue;
+    polygons.push(
+      mesh.faceVertices(f).map((vi) => {
+        let d = remap.get(vi);
+        if (d === undefined) {
+          d = polyVerts.length / 3;
+          remap.set(vi, d);
+          const p = mesh.vertices[vi].position;
+          polyVerts.push(p[0], p[1], p[2]);
+        }
+        return d;
+      }),
+    );
+  }
+  return { ...bakePolygons(polyVerts, polygons), polyVerts, polygons };
+}
+
+/**
+ * Generate box / tri-planar UVs for geometry that has none (the half-edge kernel produces no
+ * UVs). Each vertex is projected onto the world plane perpendicular to the dominant axis of its
+ * normal, so axis-aligned faces (cubes, planes, extrusions) get sensible, world-scaled texture
+ * mapping. `scale` is texture tiles per world unit. Not a true unwrap — enough to show detail.
+ */
+export function computeBoxUVs(positions: number[], normals: number[], scale = 1): number[] {
+  const uvs = new Array<number>((positions.length / 3) * 2);
+  for (let i = 0, u = 0; i < positions.length; i += 3, u += 2) {
+    const x = positions[i], y = positions[i + 1], z = positions[i + 2];
+    const nx = Math.abs(normals[i] ?? 0), ny = Math.abs(normals[i + 1] ?? 0), nz = Math.abs(normals[i + 2] ?? 0);
+    let uu: number, vv: number;
+    if (nx >= ny && nx >= nz) { uu = z; vv = y; }        // X-facing → project ZY
+    else if (ny >= nx && ny >= nz) { uu = x; vv = z; }   // Y-facing → project XZ
+    else { uu = x; vv = y; }                              // Z-facing → project XY
+    uvs[u] = uu * scale;
+    uvs[u + 1] = vv * scale;
+  }
+  return uvs;
+}
+
+/** Fan-triangulate welded polygons into flat-shaded render arrays (positions/normals/indices). */
+function bakePolygons(polyVerts: number[], polygons: number[][]): { positions: number[]; normals: number[]; indices: number[] } {
   const positions: number[] = [];
   const normals: number[] = [];
   const indices: number[] = [];
@@ -37,7 +90,7 @@ export function toGeometry(mesh: HalfEdgeMesh): CustomGeometry {
       indices.push(base, base + 1, base + 2);
     }
   }
-  return { positions, indices, normals, polyVerts, polygons };
+  return { positions, normals, indices };
 }
 
 /**

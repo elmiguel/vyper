@@ -44,7 +44,7 @@ describe('ModelerInspector', () => {
     s().setComponent('object');
     s().pickFace(null, false); // clear selection
     render(<ModelerInspector />);
-    expect(screen.getByText(/Select an object/i)).toBeInTheDocument();
+    expect(screen.getByText(/to edit its position, rotation, and size/i)).toBeInTheDocument();
     expect(screen.queryByText('Position')).not.toBeInTheDocument();
   });
 
@@ -73,5 +73,15 @@ describe('ModelerInspector', () => {
     render(<ModelerInspector />);
     expect(screen.getByText('Metallic')).toBeInTheDocument();
     expect(screen.getByText('Roughness')).toBeInTheDocument();
+  });
+
+  it('the Make asset toggle saves the focused object to the library', () => {
+    render(<ModelerInspector />);
+    const toggle = screen.getByLabelText(/Make asset/i) as HTMLInputElement;
+    expect(toggle.checked).toBe(false);
+    fireEvent.click(toggle);
+    const generated = useEditorStore.getState().assetLibrary.assets.filter((a) => a.source === 'generated');
+    expect(generated).toHaveLength(1);
+    expect(generated[0].geometry!.positions.length).toBeGreaterThan(0);
   });
 });
