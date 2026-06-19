@@ -97,6 +97,9 @@ export interface ModelerState extends MeshActions {
   selectedObjectIsReference: () => boolean;
   /** Toggle the focused object's asset between reference (linked instances) and copy. */
   setSelectedObjectReference: (on: boolean) => void;
+  /** Re-extract every exported object and update its asset in place (call on save) so edits to
+   *  the source propagate to the asset and its linked instances. */
+  republishLinkedObjects: () => void;
   setTool: (tool: ModelerTool) => void;
   /** Activate/clear an interactive edit tool; toggling the active one returns to 'none'. */
   setEditTool: (tool: EditTool) => void;

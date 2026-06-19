@@ -215,8 +215,10 @@ Once an object is an asset, a **Make reference** toggle marks it as a *linked* a
 - **Reference on** → the instance is tagged with `mesh.linkedAssetId` (a proxy). On every
   project load it re-syncs its geometry/material/colour from the source asset
   (`syncLinkedEntities`, run inside `hydrateScene`), so edits to the source propagate to all
-  references. Re-running **Make asset** republishes the asset **in place** (same id, reference
-  flag kept), and `resolveLinkedAssets()` re-syncs open instances.
+  references. **Saving the model auto-republishes** exported objects (`republishLinkedObjects`
+  re-extracts each linked island, re-matched by nearest centroid, and updates its asset in place
+  — same id, reference flag kept), so editing the source and saving is enough to update
+  references on their next load. `resolveLinkedAssets()` re-syncs already-open instances.
 - **Reference off** (default) → the instance is an independent **copy**, unaffected by later
   source changes.
 

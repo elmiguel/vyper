@@ -81,6 +81,16 @@ describe('Make asset (Modeling Studio)', () => {
     expect(ed().entities.find((e) => e.id === eid)!.mesh!.custom!.positions).toEqual([7, 7, 7]);
   });
 
+  it('republishLinkedObjects updates the asset in place after the source is edited', () => {
+    const id = s().makeSelectedObjectAsset()!;
+    const before = ed().assetLibrary.assets.find((a) => a.id === id)!.geometry!.positions.slice();
+    s().setSelectionCenter('y', 5); // edit the source object (move it up)
+    s().republishLinkedObjects();
+    const asset = ed().assetLibrary.assets.find((a) => a.id === id)!;
+    expect(asset.geometry!.positions).not.toEqual(before); // asset reflects the edit
+    expect(ed().assetLibrary.assets.filter((a) => a.source === 'generated' && a.type === 'model')).toHaveLength(1); // same id, no dup
+  });
+
   it('non-reference asset: instances are independent copies (no link)', () => {
     const id = s().makeSelectedObjectAsset()!; // reference left off
     const eid = ed().addModelEntity(id);

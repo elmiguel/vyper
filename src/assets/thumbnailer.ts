@@ -71,11 +71,14 @@ async function renderThumbnail(asset: Asset, size: number): Promise<string> {
 /** Get (and memoize) a model asset's preview thumbnail as a PNG data URL.
  *  Rejects if the model can't be loaded — callers should fall back to an icon. */
 export function getThumbnail(asset: Asset, size = 256): Promise<string> {
-  const hit = cache.get(asset.id);
+  // Key by id + a content signature so a republished generated asset (same id, new geometry)
+  // re-renders instead of returning the stale cached image.
+  const key = `${asset.id}:${asset.geometry ? `${asset.geometry.positions.length}/${asset.geometry.indices.length}` : asset.modelFile ?? ''}`;
+  const hit = cache.get(key);
   if (hit) return hit;
   const p = enqueue(() => renderThumbnail(asset, size));
-  cache.set(asset.id, p);
+  cache.set(key, p);
   // Don't cache failures forever — let a later open retry.
-  p.catch(() => cache.delete(asset.id));
+  p.catch(() => cache.delete(key));
   return p;
 }

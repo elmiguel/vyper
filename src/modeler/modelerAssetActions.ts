@@ -1,6 +1,8 @@
+import type { HalfEdgeMesh } from '@/kernel/HalfEdgeMesh';
 import type { ModelerState } from './modelerStore';
 import type { EditActionsCtx } from './modelerEditActions';
-import type { SelectionBounds } from './selectionBounds';
+import { selectionBounds, type SelectionBounds } from './selectionBounds';
+import { allIslands } from './modelerFocus';
 import { extractFacesGeometry } from '@/kernel/render';
 import { computeBoxUVs } from './modelerSceneGeom';
 import { useEditorStore } from '@/store/editorStore';
@@ -10,6 +12,13 @@ import { useEditorStore } from '@/store/editorStore';
  *  unless the island is moved. */
 function islandKey(b: SelectionBounds): string {
   return b.center.map((n) => n.toFixed(2)).join(',');
+}
+
+/** Distinct kernel vertex ids touched by a set of faces. */
+function islandVerts(mesh: HalfEdgeMesh, faces: number[]): number[] {
+  const set = new Set<number>();
+  for (const f of faces) for (const v of mesh.faceVertices(f)) set.add(v);
+  return [...set];
 }
 
 /** The project mesh entity the modeler mirrors into (also holds colour + material). */
@@ -26,7 +35,7 @@ function meshEntity() {
 export function createAssetActions(ctx: EditActionsCtx): Pick<
   ModelerState,
   'makeSelectedObjectAsset' | 'removeSelectedObjectAsset' | 'selectedObjectAssetId'
-  | 'setSelectedObjectReference' | 'selectedObjectIsReference'
+  | 'setSelectedObjectReference' | 'selectedObjectIsReference' | 'republishLinkedObjects'
 > {
   /** Faces of the focused object, or null when no whole object is selected (Object mode). */
   const focusedFaces = (): number[] | null => {
@@ -89,6 +98,35 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
       const ed = useEditorStore.getState();
       ed.updateMesh(ent.id, { objectAssets: map });
       if (id) ed.deleteAsset(id);
+    },
+
+    republishLinkedObjects: () => {
+      // Re-extract every object that was exported to an asset and update that asset in place, so
+      // editing the source object propagates to its asset (and to linked instances on next load).
+      // Each link is re-matched to the island whose centroid is now nearest its stored key (the
+      // object may have shifted while editing); the key map is rebuilt from the new centroids.
+      const ent = meshEntity();
+      const map = ent?.mesh?.objectAssets;
+      if (!ent?.mesh || !map || Object.keys(map).length === 0) return;
+      const mesh = ctx.mesh();
+      const ed = useEditorStore.getState();
+      const islands = allIslands(mesh).map((faces) => ({ faces, center: selectionBounds(mesh, islandVerts(mesh, faces)).center }));
+      if (islands.length === 0) return;
+      const next: Record<string, string> = {};
+      for (const [key, assetId] of Object.entries(map)) {
+        const [tx, ty, tz] = key.split(',').map(Number);
+        let best = islands[0];
+        let bestD = Infinity;
+        for (const isl of islands) {
+          const d = (isl.center[0] - tx) ** 2 + (isl.center[1] - ty) ** 2 + (isl.center[2] - tz) ** 2;
+          if (d < bestD) { bestD = d; best = isl; }
+        }
+        const geo = extractFacesGeometry(mesh, best.faces);
+        geo.uvs = computeBoxUVs(geo.positions, geo.normals);
+        ed.saveModelerObjectAsset(ent.name || 'Object', geo, ent.mesh.material, ent.mesh.color, assetId);
+        next[islandKey(selectionBounds(mesh, islandVerts(mesh, best.faces)))] = assetId;
+      }
+      ed.updateMesh(ent.id, { objectAssets: next });
     },
   };
 }
