@@ -217,10 +217,27 @@ Once an object is an asset, a **Make reference** toggle marks it as a *linked* a
   (`syncLinkedEntities`, run inside `hydrateScene`), so edits to the source propagate to all
   references. **Saving the model auto-republishes** exported objects (`republishLinkedObjects`
   re-extracts each linked island, re-matched by nearest centroid, and updates its asset in place
-  — same id, reference flag kept), so editing the source and saving is enough to update
-  references on their next load. `resolveLinkedAssets()` re-syncs already-open instances.
+  — same id, reference flag kept). `resolveLinkedAssets()` re-syncs already-open instances.
 - **Reference off** (default) → the instance is an independent **copy**, unaffected by later
   source changes.
+
+#### Cross-project sharing (the shared library)
+
+Generated assets are normally persisted **per project** (`settings.generatedAssets`), so a copy in
+one project can't see edits made in another. Reference assets would therefore be stale the moment you
+opened a *different* game. To fix that, reference assets also live in **one shared store** — the
+app-state singleton's `data.library` blob ([globalLibrary.ts](../src/store/globalLibrary.ts)):
+
+- **Saving the model** publishes every reference asset to the shared library (`publishGlobalLibrary`,
+  awaited in the Studio's Save / Home paths so it lands before you navigate).
+- **Opening any project** merges the shared library *over* the project's local copies
+  ([projectStore.ts](../src/store/projectStore.ts) `openGame`), so a reference resolves to the
+  canonical, latest version before linked instances re-sync.
+- Turning **Reference off** or deleting the asset removes it from the shared library.
+
+Net effect: edit the source object in the Studio → Save → open a game that references it → the
+instance (and the asset browser) show the update. Writes are read-modify-write, so they never clobber
+`lastGameId` or other app-state keys.
 
 ### Project thumbnail
 

@@ -6,6 +6,14 @@ import { allIslands } from './modelerFocus';
 import { extractFacesGeometry } from '@/kernel/render';
 import { computeBoxUVs } from './modelerSceneGeom';
 import { useEditorStore } from '@/store/editorStore';
+import { publishGlobalLibrary, unpublishGlobalLibrary } from '@/store/globalLibrary';
+
+/** Push every reference (proxy) generated asset to the shared cross-project library. Fire-and-forget:
+ *  the local store is the source of truth this session; the shared copy lets *other* projects update. */
+function publishReferenceAssets() {
+  const refs = useEditorStore.getState().assetLibrary.assets.filter((a) => a.source === 'generated' && a.reference);
+  void publishGlobalLibrary(refs).catch(() => {});
+}
 
 /** Stable-ish key for a focused object (island) within the single modeler mesh: its centroid
  *  rounded to 2 decimals. Survives save/reload (geometry is restored) and keeps the asset link
@@ -61,7 +69,11 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
 
     setSelectedObjectReference: (on) => {
       const id = linkedId();
-      if (id) useEditorStore.getState().updateAsset(id, { reference: on });
+      if (!id) return;
+      useEditorStore.getState().updateAsset(id, { reference: on });
+      // Add/remove the asset from the shared library so other projects' references resolve it.
+      if (on) publishReferenceAssets();
+      else void unpublishGlobalLibrary(id).catch(() => {});
     },
 
     makeSelectedObjectAsset: () => {
@@ -97,7 +109,10 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
       delete map[key];
       const ed = useEditorStore.getState();
       ed.updateMesh(ent.id, { objectAssets: map });
-      if (id) ed.deleteAsset(id);
+      if (id) {
+        ed.deleteAsset(id);
+        void unpublishGlobalLibrary(id).catch(() => {});
+      }
     },
 
     republishLinkedObjects: () => {
@@ -127,6 +142,8 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
         next[islandKey(selectionBounds(mesh, islandVerts(mesh, best.faces)))] = assetId;
       }
       ed.updateMesh(ent.id, { objectAssets: next });
+      // Propagate the edits to the shared library so references in *other* projects update on load.
+      publishReferenceAssets();
     },
   };
 }

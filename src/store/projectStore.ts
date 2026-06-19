@@ -3,6 +3,7 @@ import { nanoid } from 'nanoid';
 import { api, type GameSummary, type SceneMeta, type ScriptRow, type VersionMeta } from '@/data';
 import { useEditorStore, starterEntities } from './editorStore';
 import { applyAutoCover, captureViewportCover, resetAutoCover } from './projectCover';
+import { loadGlobalLibrary, setLastGame } from './globalLibrary';
 import type { Asset, Entity, GameDesign, GameMode, MaterialPreset, PrefabDef, Script } from '@/types';
 import { emptyDesign } from '@/types';
 
@@ -191,7 +192,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         lastSnapshotAt: null,
       });
       await get().save({ snapshot: 'manual', label: 'Created' });
-      await api.putApp({ lastGameId: detail.game.id });
+      await setLastGame(detail.game.id);
     } catch (e) {
       set({ error: (e as Error).message, view: 'home' });
     }
@@ -220,7 +221,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         lastSnapshotAt: null,
       });
       await get().save({ snapshot: 'manual', label: 'Created' });
-      await api.putApp({ lastGameId: detail.game.id });
+      await setLastGame(detail.game.id);
     } catch (e) {
       set({ error: (e as Error).message, view: 'home' });
     }
@@ -241,6 +242,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       useEditorStore.getState().hydratePrefabs(prefabsOf(detail.game.settings));
       useEditorStore.getState().hydrateMaterialPresets(materialsOf(detail.game.settings));
       useEditorStore.getState().hydrateGeneratedAssets(generatedAssetsOf(detail.game.settings));
+      // Merge the shared reference library *over* the project's local copies, so reference (proxy)
+      // assets resolve to the canonical, latest version before the scene's linked instances re-sync.
+      const sharedLibrary = await loadGlobalLibrary();
+      if (sharedLibrary.length) useEditorStore.getState().hydrateGeneratedAssets(sharedLibrary);
       useEditorStore.getState().hydrateWorkspace(workspaceOf(detail.game.settings));
       useEditorStore.getState().hydrateScripts(rowsToScripts(detail.scripts));
       const scene = await api.getScene(sceneId);
@@ -260,7 +265,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         lastSavedAt: Date.now(),
         lastSnapshotAt: null,
       });
-      await api.putApp({ lastGameId: detail.game.id });
+      await setLastGame(detail.game.id);
     } catch (e) {
       set({ error: (e as Error).message, view: 'home' });
     }
