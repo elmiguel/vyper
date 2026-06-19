@@ -74,6 +74,16 @@ describe('assetSlice', () => {
       await s().loadAssetManifest();
       expect(s().assetLibrary.assets.map((a) => a.id)).toEqual(['keep']);
     });
+
+    it('preserves generated assets added DURING the load (project-open race)', async () => {
+      const s = () => useEditorStore.getState();
+      vi.stubGlobal('fetch', routedFetch({ assets: [asset('chicken_001')] }, { assets: [] }));
+      const p = s().loadAssetManifest(); // starts; awaits fetch
+      // Simulate a project opening mid-load and hydrating a generated asset.
+      s().addAsset(asset('gen-1', { source: 'generated' }));
+      await p;
+      expect(s().assetLibrary.assets.some((a) => a.id === 'gen-1')).toBe(true);
+    });
   });
 
   describe('uploadAssets', () => {

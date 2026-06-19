@@ -54,8 +54,6 @@ export function createAssetSlice(set: StoreSet, get: StoreGet): AssetSlice {
       const prior = get().assetLibrary.assets;
       let builtins = prior.filter((a) => a.source === 'builtin');
       let uploaded = prior.filter((a) => a.source === 'uploaded');
-      // Modeling-Studio creations are client-side; never let a manifest reload drop them.
-      const generated = prior.filter((a) => a.source === 'generated');
       try {
         const res = await fetch(`${ASSET_ROOT}manifest.json`, { cache: 'no-cache' });
         if (res.ok) {
@@ -71,7 +69,11 @@ export function createAssetSlice(set: StoreSet, get: StoreGet): AssetSlice {
       } catch {
         /* backend unavailable — keep prior uploads */
       }
-      set({ assetLibrary: { assets: mergeById(mergeById(builtins, uploaded), generated) } });
+      // Re-read generated assets at set-time (NOT a pre-await snapshot): a project opening during
+      // this async load may have just hydrated its generated assets, and we must not drop them.
+      set((s) => ({
+        assetLibrary: { assets: mergeById(mergeById(builtins, uploaded), s.assetLibrary.assets.filter((a) => a.source === 'generated')) },
+      }));
     },
 
     uploadAssets: async (files) => {
