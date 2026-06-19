@@ -168,6 +168,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   newGame: async (name, mode = '3d') => {
+    clearAutosave();
     set({ view: 'loading', error: null });
     try {
       // Set the authoring mode first so the starter scene + engine build for 2D/3D.
@@ -199,6 +200,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   newModel: async (name) => {
+    clearAutosave();
     set({ view: 'loading', error: null });
     try {
       useEditorStore.getState().setMode('3d'); // modeling is always 3D
@@ -228,6 +230,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   openGame: async (id) => {
+    clearAutosave(); // drop any autosave armed for the project we're leaving
     set({ view: 'loading', error: null });
     try {
       const detail = await api.getGame(id);
@@ -403,6 +406,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   switchScene: async (sceneId) => {
     if (sceneId === get().sceneId) return;
+    clearAutosave();
     await get().save(); // persist the scene we're leaving
     try {
       const scene = await api.getScene(sceneId);
@@ -452,6 +456,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   goHome: async () => {
+    clearAutosave();
     if (get().gameId && get().sceneId) await get().save();
     set({ view: 'home', gameId: null, sceneId: null, gameName: '', gameSettings: {}, scenes: [] });
     await get().refreshGames();
@@ -461,12 +466,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 // Debounced autosave: persists the live scene + scripts after edits settle, and
 // drops a rate-limited revert-snapshot. The in-session undo stack is untouched.
 let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+/** Cancel any pending autosave. Called on every project/scene navigation so a timer armed for one
+ *  project can never fire against the next — otherwise the still-shared editor store would persist
+ *  the previous project's entities into whatever scene is now loaded (cross-project corruption). */
+function clearAutosave() {
+  if (autosaveTimer) clearTimeout(autosaveTimer);
+  autosaveTimer = null;
+}
 function scheduleAutosave() {
   if (autosaveTimer) clearTimeout(autosaveTimer);
+  // Remember the project + scene this autosave is for. If the user navigates away before it fires,
+  // the loaded project won't match and we abort — we must never write one project's scene to another.
+  const { gameId, sceneId } = useProjectStore.getState();
   autosaveTimer = setTimeout(() => {
+    autosaveTimer = null;
     const p = useProjectStore.getState();
     if (
       (p.view === 'editor' || p.view === 'modeler') &&
+      p.gameId === gameId &&
+      p.sceneId === sceneId &&
       p.autosaveEnabled &&
       p.dirty &&
       !p.saving &&
