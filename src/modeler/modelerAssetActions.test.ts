@@ -29,6 +29,8 @@ describe('Make asset (Modeling Studio)', () => {
     expect(asset.source).toBe('generated');
     expect(asset.type).toBe('model');
     expect(asset.geometry!.positions.length).toBeGreaterThan(0);
+    // UVs are baked in so the asset's textures map (scene + preview), not flat/black.
+    expect(asset.geometry!.uvs!.length).toBeGreaterThan(0);
     expect(asset.meshColor).toBe('#abcdef');
     // Linked on the entity + reflected by the toggle selector.
     expect(s().selectedObjectAssetId()).toBe(id);

@@ -12,9 +12,10 @@ import type { AnimationGroup } from '@babylonjs/core/Animations/animationGroup';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Play, Pause, Loader2, AlertTriangle } from 'lucide-react';
 import '@/babylon/loaders'; // ensure OBJ/glTF loaders are registered (idempotent)
-import { defaultImportTransform, type Asset } from '@/types';
+import { defaultImportTransform, type Asset, type Entity } from '@/types';
 import { ASSET_ROOT } from '@/store/slices/assetSlice';
 import { buildCustomMesh } from '@/babylon/customMesh';
+import { syncEntityMaterial } from '@/babylon/materials';
 import { computeModelTransform, type Bounds } from './modelTransform';
 
 const DEG = Math.PI / 180;
@@ -94,10 +95,21 @@ export function ModelPreview({ asset }: { asset: Asset }) {
     if (isGenerated) {
       // Build straight from the inline baked geometry — no file/loader involved.
       const mesh = buildCustomMesh(scene, `gen-${asset.id}`, asset.geometry!);
-      const mat = new StandardMaterial('gen-mat', scene);
-      mat.diffuseColor = hexToColor3(asset.meshColor ?? '#cccccc');
-      mat.backFaceCulling = false;
-      mesh.material = mat;
+      if (asset.meshMaterial) {
+        // Apply the saved PBR material + texture maps via the game's own material path.
+        const fake = {
+          id: asset.id, name: asset.name, parentId: null,
+          transform: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
+          mesh: { kind: 'custom' as const, color: asset.meshColor ?? '#cccccc', material: asset.meshMaterial, visible: true },
+          scriptIds: [], props: {},
+        } as Entity;
+        syncEntityMaterial(scene, mesh, fake, '3d', undefined);
+      } else {
+        const mat = new StandardMaterial('gen-mat', scene);
+        mat.diffuseColor = hexToColor3(asset.meshColor ?? '#cccccc');
+        mat.backFaceCulling = false;
+        mesh.material = mat;
+      }
       onReady([mesh], []);
     } else {
       SceneLoader.ImportMeshAsync(null, asset.rootUrl ?? ASSET_ROOT, asset.modelFile!, scene)

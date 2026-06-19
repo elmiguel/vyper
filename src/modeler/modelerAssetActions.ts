@@ -2,6 +2,7 @@ import type { ModelerState } from './modelerStore';
 import type { EditActionsCtx } from './modelerEditActions';
 import type { SelectionBounds } from './selectionBounds';
 import { extractFacesGeometry } from '@/kernel/render';
+import { computeBoxUVs } from './modelerSceneGeom';
 import { useEditorStore } from '@/store/editorStore';
 
 /** Stable-ish key for a focused object (island) within the single modeler mesh: its centroid
@@ -46,6 +47,9 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
       const ent = meshEntity();
       if (!ent || !ent.mesh) return null;
       const geo = extractFacesGeometry(ctx.mesh(), faces);
+      // The kernel has no UVs, so bake box/tri-planar UVs into the saved geometry — otherwise
+      // the asset's textures have nowhere to map (renders flat/black in the scene + preview).
+      if (!geo.uvs?.length) geo.uvs = computeBoxUVs(geo.positions, geo.normals);
       const ed = useEditorStore.getState();
       const id = ed.saveModelerObjectAsset(ent.name || 'Object', geo, ent.mesh.material, ent.mesh.color);
       const key = islandKey(ctx.get().selectionBounds());
