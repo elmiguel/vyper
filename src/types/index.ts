@@ -207,6 +207,24 @@ export interface TriggerConfig {
   volume?: VolumeConfig;
 }
 
+/**
+ * Marks an entity as a Spawner: an editor-only reference point that spawns copies of a chosen
+ * target object into the running game when triggered (via the spawn action). The spawner has no
+ * game mesh of its own — only a camera-facing billboard drawn in the scene editor. At play start
+ * the target is hidden into the spawner's pool; `world.spawn` deploys instances at this location
+ * and `world.despawn` returns them for reuse (see {@link SpawnPool}). Counts are unbounded, so it
+ * doubles as the entry point for AI-driven spawning later.
+ */
+export interface SpawnerConfig {
+  /** Entity id of the object this spawner deploys (its template/source). null until chosen. */
+  targetId: string | null;
+  /** How many instances to pre-create in the pool at play start (0 = grow lazily on first spawn). */
+  prewarm?: number;
+}
+
+/** Whether an entity is a Spawner (has a spawner component). */
+export const isSpawner = (e: Pick<Entity, 'spawner'>): boolean => !!e.spawner;
+
 // ---------------- Effects (particle VFX) ----------------
 
 /** Emitter volume a particle system spawns from. */
@@ -302,6 +320,8 @@ export interface Entity {
   physics?: PhysicsConfig;
   /** Marks this entity's mesh as a trigger volume (sensor zone). */
   trigger?: TriggerConfig;
+  /** Marks this entity as a Spawner (editor-only spawn point; see {@link SpawnerConfig}). */
+  spawner?: SpawnerConfig;
   /** Optional group label, used by trigger filters and world queries. */
   tag?: string;
   /** Particle effects attached to this entity (VFX). */

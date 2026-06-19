@@ -346,6 +346,29 @@ export const extraSpecs: Record<string, NodeSpec> = {
     inputs: [{ id: 'target', label: 'object', kind: 'entity', default: '' }],
     outputs: [],
   },
+  'world/spawn': {
+    kind: 'world/spawn',
+    label: 'Spawn',
+    category: 'world',
+    color: C.world,
+    execIn: true,
+    execOuts: ['out'],
+    // Fire a spawner: deploy one instance of its target object at the spawner's location. Pull
+    // the spawner from an Object value node (or type its name), like other cross-entity actions.
+    inputs: [{ id: 'spawner', label: 'spawner', kind: 'entity', default: '' }],
+    outputs: [],
+  },
+  'world/despawn': {
+    kind: 'world/despawn',
+    label: 'Despawn',
+    category: 'world',
+    color: C.world,
+    execIn: true,
+    execOuts: ['out'],
+    // Return a spawned instance to its pool for reuse (e.g. wire a kill-zone trigger's object here).
+    inputs: [{ id: 'target', label: 'instance', kind: 'entity', default: '' }],
+    outputs: [],
+  },
   'world/teleport': {
     kind: 'world/teleport',
     label: 'Teleport Object',

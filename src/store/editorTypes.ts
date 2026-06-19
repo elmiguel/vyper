@@ -274,6 +274,11 @@ export interface EditorState {
   /** Add a ready-to-play player: an entity with default movement controls attached. */
   addPlayer: () => string;
   addLight: (kind: LightKind) => string;
+  /** Add a Spawner: an editor-only spawn point with no target yet. Returns its entity id. */
+  addSpawner: () => string;
+  /** Set a spawner's target object and snap that object onto the spawner (its spawn location).
+   *  Pass null to clear the target. No-op if `id` isn't a spawner or `targetId` is the spawner. */
+  setSpawnerTarget: (id: string, targetId: string | null) => void;
   removeEntity: (id: string) => void;
   duplicateEntity: (id: string) => void;
   renameEntity: (id: string, name: string) => void;

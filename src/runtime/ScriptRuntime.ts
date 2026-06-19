@@ -102,6 +102,9 @@ export class ScriptRuntime {
       setVisible: (target: unknown, visible: unknown) => sm.setEntityVisible(resolveId(target), !!visible),
       setActive: (target: unknown, active: unknown) => sm.setEntityActive(resolveId(target), !!active),
       destroy: (target: unknown) => sm.destroyRuntimeEntity(resolveId(target)),
+      // ----- Spawner pools: deploy / recycle instances of a spawner's target object -----
+      spawn: (spawner: unknown) => sm.spawnFromSpawner(resolveId(spawner)),
+      despawn: (target: unknown) => sm.despawnInstance(resolveId(target)),
       // ----- Cross-entity physics -----
       setVelocity: (target: unknown, x: number, y = 0, z = 0) => {
         sm.getBody(resolveId(target))?.setLinearVelocity(new Vector3(x, y, z));

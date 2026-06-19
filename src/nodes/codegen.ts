@@ -233,6 +233,12 @@ class Compiler {
       case 'world/destroy':
         out += `${indent}world.destroy(${this.inputExpr(nodeId, 'target')});\n`;
         break;
+      case 'world/spawn':
+        out += `${indent}world.spawn(${this.inputExpr(nodeId, 'spawner')});\n`;
+        break;
+      case 'world/despawn':
+        out += `${indent}world.despawn(${this.inputExpr(nodeId, 'target')});\n`;
+        break;
       case 'world/teleport': {
         const v = this.inputExpr(nodeId, 'to');
         out += `${indent}{ const _v = ${v}; world.teleport(${this.inputExpr(nodeId, 'target')}, _v.x, _v.y, _v.z); }\n`;

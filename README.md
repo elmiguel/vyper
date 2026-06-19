@@ -167,6 +167,24 @@ console  // routed to the in-editor Debugger panel
 Runtime errors are caught and reported in the Debugger; a script that throws is
 disabled for the session to avoid 60fps log spam.
 
+## Spawners
+
+A **Spawner** is an editor-only spawn point that deploys copies of a chosen object
+into the running game. Add one from the Hierarchy's *Add Spawner* menu; it has no
+game mesh — only a camera-facing billboard drawn over the scene (editor layer +
+top rendering group, so it never appears in play). In the Inspector, pick the
+**Object** it spawns; that object snaps onto the spawn point and follows the
+spawner when you move it.
+
+At **Play**, each spawner registers a two-pool queue (`src/runtime/SpawnPool.ts`):
+the source object is hidden into the **spawner pool** (idle, reusable instances),
+and the **Spawn** action (`world.spawn(name)`) hands one instance to the **game
+pool**, placed at the spawner — cloning a fresh one if the pool is empty, so spawn
+counts are unbounded. The **Despawn** action (`world.despawn(instance)`) returns an
+instance to the spawner pool for reuse — e.g. wire a kill-zone trigger's object
+into it. Instances are runtime-only (never saved), so Stop discards them and resets
+the scene. This is the entry point for AI-driven spawning later.
+
 ## Assets (3D models & textures)
 
 Built-in assets live in `public/assets/` (served by Vite at `/assets/...`, so
@@ -230,7 +248,7 @@ src/
   nodes/        nodeTypes (merges nodeSpecs.core/extra, nodeSpec.types), EngineNode,
                 NodeEditor, codegen (graph→code), codeparse (lexer/ir/parser/graph → code→graph)
   runtime/      ScriptRuntime (lifecycle loop) + vector, InputState, cameraApi,
-                entityApi, ObjectiveTracker
+                entityApi, ObjectiveTracker, SpawnPool (spawner two-pool queue)
   panels/       Toolbar, Hierarchy, Inspector, ScriptEditor, ConsolePanel
   layout/       EditorLayout (resizable panes)
 ```

@@ -12,6 +12,7 @@ import { TerrainPanel } from './TerrainPanel';
 import { ModelingPanel } from './ModelingPanel';
 import { PrefabsPanel } from './PrefabsPanel';
 import { VolumePanel } from './VolumePanel';
+import { SpawnerPanel } from './SpawnerPanel';
 
 // Trim float noise (e.g. live-play transforms) to 3 decimals when not editing.
 const trim3 = (v: number) => String(Number(v.toFixed(3)));
@@ -132,6 +133,8 @@ export function Inspector() {
           <Vec3Row label="Rotation" value={rot} disabled={playing} onChange={(v) => updateTransform(entity.id, { rotation: v })} />
           <Vec3Row label="Scale" value={entity.transform.scale} disabled={playing} onChange={(v) => updateTransform(entity.id, { scale: v })} />
         </section>
+
+        {entity.spawner && <SpawnerPanel entity={entity} disabled={playing} />}
 
         {entity.mesh && (
           <section>

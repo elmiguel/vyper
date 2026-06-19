@@ -315,6 +315,9 @@ export function acquireEngine(canvas: HTMLCanvasElement): SceneManager {
           .enablePhysics(s.entities)
           .catch((err) => gameConsole.error('runtime', `Physics error: ${(err as Error).message}`))
           .finally(() => {
+            // Register spawners (hide each source object into its pool) before scripts run, so a
+            // script's onStart spawn finds a ready pool.
+            manager!.initSpawners(s.entities);
             const errs = runtime!.start(s.entities, s.scripts, s.design.objectives);
             // Auto-play effects flagged to start on Play.
             for (const e of s.entities) {
@@ -339,6 +342,7 @@ export function acquireEngine(canvas: HTMLCanvasElement): SceneManager {
         gameConsole.info('runtime', '▶ Resumed.');
       } else if (s.playState === 'editing') {
         runtime!.stop();
+        manager!.resetSpawners(); // dispose pooled instances before the scene is rebuilt
         manager!.disablePhysics();
         manager!.clearEffects();
         manager!.clearClips();

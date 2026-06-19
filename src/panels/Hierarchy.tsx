@@ -38,6 +38,7 @@ export function Hierarchy() {
     ];
     if (!is2D) items.push({ label: 'Add Light', submenu: LIGHTS.map((l) => ({ label: l, onClick: () => s.addLight(l) })) });
     items.push({ label: 'Add Volume', submenu: volumesFor(s.mode).map((k) => ({ label: k, onClick: () => s.addVolume(k) })) });
+    items.push({ label: 'Add Spawner', onClick: () => s.addSpawner() });
     items.push({ label: 'Show Grid', separator: true, checked: s.gridVisible, onClick: () => s.toggleGrid() });
     return items;
   };

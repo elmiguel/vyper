@@ -50,6 +50,8 @@ export const NODE_PALETTE: { category: NodeCategory; items: string[] }[] = [
       'world/setVisible',
       'world/setActive',
       'world/destroy',
+      'world/spawn',
+      'world/despawn',
       'world/teleport',
       'world/setVelocity',
       'world/applyImpulse',

@@ -18,6 +18,8 @@ type EntitySlice = Pick<
   | 'updateVolume'
   | 'addPlayer'
   | 'addLight'
+  | 'addSpawner'
+  | 'setSpawnerTarget'
   | 'removeEntity'
   | 'duplicateEntity'
   | 'renameEntity'
@@ -202,6 +204,39 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
       return e.id;
     },
 
+    addSpawner: () => {
+      get().record('add');
+      // A spawner is an entity with no game mesh — only an editor billboard. It floats at eye
+      // level in 3D so it reads as a marker, and sits on the z=0 plane in 2D.
+      const e = makeEntity({
+        name: uniqueName('Spawner'),
+        spawner: { targetId: null },
+        transform: { position: v3(0, get().mode === '2d' ? 0 : 1, 0), rotation: v3(), scale: v3(1, 1, 1) },
+      });
+      set((s) => ({ entities: [...s.entities, e], selectedId: e.id, sceneRevision: s.sceneRevision + 1 }));
+      return e.id;
+    },
+
+    setSpawnerTarget: (id, targetId) => {
+      // Can't target itself (would spawn copies of the marker), and only spawners have a target.
+      if (targetId === id) return;
+      get().record(`spawner:${id}`);
+      set((s) => {
+        const spawner = s.entities.find((e) => e.id === id);
+        if (!spawner?.spawner) return s;
+        const pos = spawner.transform.position;
+        return {
+          entities: s.entities.map((e) => {
+            if (e.id === id) return { ...e, spawner: { ...e.spawner!, targetId } };
+            // Snap the chosen target onto the spawner — this spot is where it'll spawn.
+            if (targetId && e.id === targetId) return { ...e, transform: { ...e.transform, position: { ...pos } } };
+            return e;
+          }),
+          sceneRevision: s.sceneRevision + 1,
+        };
+      });
+    },
+
     removeEntity: (id) => {
       get().record('delete');
       set((s) => {
@@ -261,13 +296,21 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
 
     updateTransform: (id, patch) => {
       get().record(`transform:${id}:${Object.keys(patch).join(',')}`);
-      set((s) => ({
-        entities: s.entities.map((e) =>
-          e.id === id ? { ...e, transform: { ...e.transform, ...patch } } : e,
-        ),
-        // Bump so the viewport re-applies the transform to the mesh (cheap reconcile).
-        sceneRevision: s.sceneRevision + 1,
-      }));
+      set((s) => {
+        const moved = s.entities.find((e) => e.id === id);
+        // Moving a spawner drags its target with it (the target marks the spawn location), so
+        // the reference point stays glued to the object it deploys.
+        const followId = patch.position && moved?.spawner?.targetId ? moved.spawner.targetId : null;
+        return {
+          entities: s.entities.map((e) => {
+            if (e.id === id) return { ...e, transform: { ...e.transform, ...patch } };
+            if (e.id === followId) return { ...e, transform: { ...e.transform, position: { ...patch.position! } } };
+            return e;
+          }),
+          // Bump so the viewport re-applies the transform to the mesh (cheap reconcile).
+          sceneRevision: s.sceneRevision + 1,
+        };
+      });
     },
 
     updateMesh: (id, patch) => {

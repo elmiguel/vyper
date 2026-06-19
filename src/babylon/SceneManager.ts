@@ -27,6 +27,8 @@ import { isPickable, nextPick, pickIdsFromHits } from './meshPicking';
 import { applyEditorRenderGating, focusCameraOn, readGizmoTransform } from './sceneViewHelpers';
 import * as ops from './runtimeEntityOps';
 import type { RuntimeOpsCtx } from './runtimeEntityOps';
+import { SpawnPool } from '../runtime/SpawnPool';
+import { createSpawnInstance, placeSpawnInstance } from './spawnerRuntimeOps';
 import { syncEntityMaterial, type MatKind } from './materials';
 import { SculptController } from './SculptController';
 import { MeshEditController } from './MeshEditController';
@@ -60,6 +62,19 @@ export class SceneManager {
   private highlight: HighlightLayer;
   private tracked = new Map<string, Tracked>();
   private snapshot = new Map<string, Entity['transform']>();
+  /** Runtime two-pool spawn queue (Spawner feature). Empty until Play registers spawners; the
+   *  Babylon glue (clone/place/hide/dispose) is wired here, the queue logic lives in SpawnPool. */
+  private readonly spawnPool = new SpawnPool({
+    createInstance: (targetId, instanceId) =>
+      createSpawnInstance({ tracked: this.tracked, scene: this.scene }, targetId, instanceId),
+    setInstanceActive: (id, on) => this.setEntityActive(id, on),
+    placeAtSpawner: (id, spawnerId) => {
+      const sp = this.getMesh(spawnerId);
+      if (sp) placeSpawnInstance({ tracked: this.tracked, scene: this.scene }, id, sp.absolutePosition.clone());
+    },
+    hideSource: (targetId) => this.setEntityActive(targetId, false),
+    disposeInstance: (id) => this.destroyRuntimeEntity(id),
+  });
   /** Loads/instantiates external 3D model assets (kind:'model'). */
   private models: ModelLoader;
   /** Asset definitions by id, kept in sync from the store (see setAssetLibrary). */
@@ -462,6 +477,29 @@ export class SceneManager {
   }
   destroyRuntimeEntity(id: string): void {
     ops.destroyRuntimeEntity(this.runtimeCtx, id);
+  }
+
+  // ----- Spawner pools (runtime; see SpawnPool) -----
+  /** Register every spawner with a target at Play start: hide each source object into its pool
+   *  and pre-warm as configured. Instances are runtime-only, so Stop discards them. */
+  initSpawners(entities: Entity[]): void {
+    this.spawnPool.register(
+      entities
+        .filter((e) => e.spawner?.targetId)
+        .map((e) => ({ spawnerId: e.id, targetId: e.spawner!.targetId!, prewarm: e.spawner!.prewarm })),
+    );
+  }
+  /** Tear down all spawned instances (on Stop). */
+  resetSpawners(): void {
+    this.spawnPool.reset();
+  }
+  /** Deploy one instance from a spawner; returns its runtime instance id (or null). */
+  spawnFromSpawner(spawnerId: string): string | null {
+    return this.spawnPool.spawn(spawnerId);
+  }
+  /** Return a spawned instance to its pool for reuse; returns false if it isn't a live instance. */
+  despawnInstance(instanceId: string): boolean {
+    return this.spawnPool.despawn(instanceId);
   }
 
   highlightSelection(id: string | null) {

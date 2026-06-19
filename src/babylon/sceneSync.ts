@@ -8,6 +8,7 @@ import { buildMesh, applyTransform, reconcileEntityLight } from './sceneBuilders
 import { syncEntityMaterial, type MatKind } from './materials';
 import { applyHeightsToMesh } from './terrainMesh';
 import { syncModelEntity, type ModelContext } from './modelLoader';
+import { buildSpawnerBillboard } from './spawnerBillboard';
 
 /** Per-entity Babylon objects the SceneManager tracks between syncs. */
 export interface Tracked {
@@ -84,6 +85,20 @@ export function reconcileEntities(ctx: SyncContext, entities: Entity[], opts: { 
         t.mesh.isVisible = e.mesh.visible;
         t.mesh.isPickable = e.mesh.visible || !!e.trigger?.enabled;
         if (!opts.skipTransforms) applyTransform(t.mesh, e.transform);
+      }
+    } else if (e.spawner) {
+      // A spawner has no game mesh — only an editor-only billboard (built once, kept across
+      // syncs). Just keep it positioned; billboardMode handles its facing, so rotation is moot.
+      if (!t.mesh || t.meshKind !== 'spawner') {
+        t.mesh?.dispose();
+        t.mesh = buildSpawnerBillboard(scene, e.id);
+        t.meshKind = 'spawner';
+      }
+      t.mesh.setEnabled(true);
+      if (!opts.skipTransforms) {
+        const p = e.transform.position;
+        t.mesh.position.set(p.x, p.y, p.z);
+        t.mesh.scaling.set(e.transform.scale.x, e.transform.scale.y, e.transform.scale.z);
       }
     } else if (t.mesh) {
       t.mesh.dispose();
