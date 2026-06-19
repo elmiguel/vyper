@@ -306,5 +306,49 @@
     "textures": [
       "asphalt_02_ao_1k.jpg"
     ]
+  },
+  {
+    "id": "anti_slip_concrete_diff_1k",
+    "name": "anti_slip_concrete_diff_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "anti_slip_concrete_diff_1k.jpg"
+    ]
+  },
+  {
+    "id": "anti_slip_concrete_nor_gl_1k",
+    "name": "anti_slip_concrete_nor_gl_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "anti_slip_concrete_nor_gl_1k.jpg"
+    ]
+  },
+  {
+    "id": "anti_slip_concrete_rough_1k",
+    "name": "anti_slip_concrete_rough_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "anti_slip_concrete_rough_1k.jpg"
+    ]
+  },
+  {
+    "id": "anti_slip_concrete_ao_1k",
+    "name": "anti_slip_concrete_ao_1k.jpg",
+    "type": "texture",
+    "source": "uploaded",
+    "format": "jpg",
+    "rootUrl": "/uploads/",
+    "textures": [
+      "anti_slip_concrete_ao_1k.jpg"
+    ]
   }
 ]
