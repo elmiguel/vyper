@@ -47,7 +47,7 @@ vi.mock('@babylonjs/core/Loading/sceneLoader', () => ({
 }));
 vi.mock('@babylonjs/core/Materials/standardMaterial', () => ({ StandardMaterial: class { diffuseColor = null; backFaceCulling = true; } }));
 vi.mock('@/babylon/customMesh', () => ({ buildCustomMesh: vi.fn(() => ({ parent: null, material: null, isVisible: true })) }));
-vi.mock('@/babylon/materials', () => ({ syncEntityMaterial: vi.fn() }));
+vi.mock('@babylonjs/core/Materials/Textures/texture', () => ({ Texture: class { constructor(public name: string) {} } }));
 
 import { ModelPreview } from './ModelPreview';
 
