@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import { api, type GameSummary, type SceneMeta, type ScriptRow, type VersionMeta } from '@/data';
 import { useEditorStore, starterEntities } from './editorStore';
+import { hmrSingleton } from './hmrStore';
 import { applyAutoCover, captureViewportCover, resetAutoCover } from './projectCover';
 import { loadGlobalLibrary, setLastGame } from './globalLibrary';
 import type { Asset, Entity, GameDesign, GameMode, MaterialPreset, PrefabDef, Script } from '@/types';
@@ -139,7 +140,11 @@ interface ProjectState {
   goHome: () => Promise<void>;
 }
 
-export const useProjectStore = create<ProjectState>((set, get) => ({
+// Wrapped in hmrSingleton so a Vite hot-update can't mint a second project store. The editor store
+// is already a singleton; if THIS one duplicated, a stale copy would keep an old gameId/sceneId
+// while the shared editor holds another project's content — and its leftover autosave subscription
+// would persist one project's entities into another project's scene (observed data loss).
+export const useProjectStore = hmrSingleton('project', () => create<ProjectState>((set, get) => ({
   view: 'home',
   games: [],
   gamesLoading: false,
@@ -461,25 +466,27 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ view: 'home', gameId: null, sceneId: null, gameName: '', gameSettings: {}, scenes: [] });
     await get().refreshGames();
   },
-}));
+})));
 
 // Debounced autosave: persists the live scene + scripts after edits settle, and
 // drops a rate-limited revert-snapshot. The in-session undo stack is untouched.
-let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
+// The timer handle lives on globalThis so it survives HMR re-evaluation — a navigation in the new
+// module must be able to cancel a timer armed by the old one.
+const timerBox = globalThis as unknown as { __vyper_autosave_timer?: ReturnType<typeof setTimeout> | null };
 /** Cancel any pending autosave. Called on every project/scene navigation so a timer armed for one
  *  project can never fire against the next — otherwise the still-shared editor store would persist
  *  the previous project's entities into whatever scene is now loaded (cross-project corruption). */
 function clearAutosave() {
-  if (autosaveTimer) clearTimeout(autosaveTimer);
-  autosaveTimer = null;
+  if (timerBox.__vyper_autosave_timer) clearTimeout(timerBox.__vyper_autosave_timer);
+  timerBox.__vyper_autosave_timer = null;
 }
 function scheduleAutosave() {
-  if (autosaveTimer) clearTimeout(autosaveTimer);
+  if (timerBox.__vyper_autosave_timer) clearTimeout(timerBox.__vyper_autosave_timer);
   // Remember the project + scene this autosave is for. If the user navigates away before it fires,
   // the loaded project won't match and we abort — we must never write one project's scene to another.
   const { gameId, sceneId } = useProjectStore.getState();
-  autosaveTimer = setTimeout(() => {
-    autosaveTimer = null;
+  timerBox.__vyper_autosave_timer = setTimeout(() => {
+    timerBox.__vyper_autosave_timer = null;
     const p = useProjectStore.getState();
     if (
       (p.view === 'editor' || p.view === 'modeler') &&
@@ -504,21 +511,29 @@ function genAssetsSig(assets: Asset[]): string {
 }
 
 // Mark the project dirty when scene-affecting editor state changes while editing.
-useEditorStore.subscribe((s, prev) => {
-  const p = useProjectStore.getState();
-  if ((p.view !== 'editor' && p.view !== 'modeler') || p.saving) return;
-  if (
-    s.entities !== prev.entities ||
-    s.scripts !== prev.scripts ||
-    s.design !== prev.design ||
-    s.prefabs !== prev.prefabs ||
-    s.materialPresets !== prev.materialPresets ||
-    s.workspace !== prev.workspace ||
-    s.gameCamera !== prev.gameCamera ||
-    s.gridVisible !== prev.gridVisible ||
-    (s.assetLibrary !== prev.assetLibrary && genAssetsSig(s.assetLibrary.assets) !== genAssetsSig(prev.assetLibrary.assets))
-  ) {
-    if (!p.dirty) useProjectStore.setState({ dirty: true });
-    scheduleAutosave();
-  }
-});
+// Registered exactly once across HMR: a hot-update re-evaluating this module would otherwise stack
+// a second subscription (each firing its own autosave — the tell-tale duplicate snapshots), so we
+// dispose any prior registration before adding a new one.
+{
+  const g = globalThis as unknown as Record<string, unknown>;
+  const prevUnsub = g.__vyper_project_sub as undefined | (() => void);
+  if (prevUnsub) prevUnsub();
+  g.__vyper_project_sub = useEditorStore.subscribe((s, prev) => {
+    const p = useProjectStore.getState();
+    if ((p.view !== 'editor' && p.view !== 'modeler') || p.saving) return;
+    if (
+      s.entities !== prev.entities ||
+      s.scripts !== prev.scripts ||
+      s.design !== prev.design ||
+      s.prefabs !== prev.prefabs ||
+      s.materialPresets !== prev.materialPresets ||
+      s.workspace !== prev.workspace ||
+      s.gameCamera !== prev.gameCamera ||
+      s.gridVisible !== prev.gridVisible ||
+      (s.assetLibrary !== prev.assetLibrary && genAssetsSig(s.assetLibrary.assets) !== genAssetsSig(prev.assetLibrary.assets))
+    ) {
+      if (!p.dirty) useProjectStore.setState({ dirty: true });
+      scheduleAutosave();
+    }
+  });
+}
