@@ -115,6 +115,28 @@ export function useShortcuts() {
         }
         return;
       }
+      // Mesh component-mode keys (Maya-style 1/2/3/4): 1 = object, 2/3/4 = vertex/edge/face.
+      // In Edit Mode they switch the component (1 leaves Edit Mode, back to object selection);
+      // out of Edit Mode, 2/3/4 enter it on the selected mesh — the select-object-then-edit
+      // workflow. Handled before generic actions so they win over any layout digit binding.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '4')) {
+        const comp = e.key === '2' ? 'vertex' : e.key === '3' ? 'edge' : e.key === '4' ? 'face' : null;
+        if (store.meshEdit.active) {
+          e.preventDefault();
+          if (comp) store.setMeshComponent(comp);
+          else store.endMeshEdit();
+          return;
+        }
+        if (comp && store.mode === '3d') {
+          const ent = store.entities.find((en) => en.id === store.selectedId && en.mesh);
+          if (ent) {
+            e.preventDefault();
+            store.beginMeshEdit(ent.id);
+            store.setMeshComponent(comp);
+            return;
+          }
+        }
+      }
       if (!action) return;
       e.preventDefault();
       dispatch(action);

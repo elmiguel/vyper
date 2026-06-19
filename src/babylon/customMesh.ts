@@ -3,7 +3,7 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { CustomGeometry } from '@/types';
-import { computeBoxUVs } from '@/kernel/render';
+import { computeBoxUVs } from './meshUVs';
 
 /** Build a mesh from baked custom geometry (CSG result / sculpt / Studio object). */
 export function buildCustomMesh(scene: Scene, id: string, geo: CustomGeometry): AbstractMesh {

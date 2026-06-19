@@ -2,9 +2,11 @@ import { useState } from 'react';
 import {
   Boxes, Lightbulb, Gamepad2, Sparkles, Scan,
   MousePointer2, Move3d, Rotate3d, Scale3d, Aperture, Eye, EyeOff, Magnet,
+  Box, Grip, Slash, Square,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import type { GizmoMode, LightKind } from '@/types';
+import type { MeshComponentMode } from '@/store/editorTypes';
 import { primsFor, volumesFor } from '@/types';
 import { EFFECT_PRESETS, presetsForMode } from '@/effects/presets';
 import { KEYMAPS, describeBinding, type EditorAction } from '@/input/keymaps';
@@ -18,6 +20,15 @@ const TOOLS: { mode: GizmoMode; icon: typeof Move3d; action: EditorAction; label
   { mode: 'scale', icon: Scale3d, action: 'tool.scale', label: 'Scale' },
 ];
 
+/** Component edit modes (Maya-style 1/2/3/4). 'object' = whole-object selection (not in Edit
+ *  Mode); the others are the in-mesh component modes. Mirrors the 1/2/3/4 keyboard shortcuts. */
+const MODES: { id: 'object' | MeshComponentMode; icon: typeof Box; label: string; key: string }[] = [
+  { id: 'object', icon: Box, label: 'Object', key: '1' },
+  { id: 'vertex', icon: Grip, label: 'Vertex', key: '2' },
+  { id: 'edge', icon: Slash, label: 'Edge', key: '3' },
+  { id: 'face', icon: Square, label: 'Face', key: '4' },
+];
+
 type AddMenu = 'mesh' | 'light' | 'fx' | 'volume';
 
 /**
@@ -27,17 +38,37 @@ type AddMenu = 'mesh' | 'light' | 'fx' | 'volume';
  */
 export function SceneTools() {
   const {
-    mode, selectedId, gizmoMode, setGizmoMode, keymap,
+    mode, selectedId, gizmoMode, setGizmoMode, keymap, entities,
     addPrimitive, addPlayer, addLight, addEffect, addVolume,
     editorEffects, toggleEditorEffects,
     meshEdit, showSurfaces, toggleSurfaces,
     snapToGrid, toggleSnapToGrid,
+    setMeshComponent, beginMeshEdit, endMeshEdit,
   } = useEditorStore();
   const [menu, setMenu] = useState<AddMenu | null>(null);
   const is2D = mode === '2d';
   const km = KEYMAPS[keymap];
   const tip = (a: EditorAction) => describeBinding(km, a);
   const close = () => setMenu(null);
+
+  // Component modes mirror the 1/2/3/4 keys: 'object' = leave Edit Mode (whole-object select);
+  // vertex/edge/face switch the component in Edit Mode, or enter it on the selected mesh.
+  const editableSelected = !!entities.find((e) => e.id === selectedId && e.mesh);
+  const modeActive = (id: (typeof MODES)[number]['id']) =>
+    id === 'object' ? !meshEdit.active : meshEdit.active && meshEdit.component === id;
+  const modeDisabled = (id: (typeof MODES)[number]['id']) =>
+    id !== 'object' && !meshEdit.active && !editableSelected;
+  const setMode = (id: (typeof MODES)[number]['id']) => {
+    if (id === 'object') {
+      if (meshEdit.active) endMeshEdit();
+      return;
+    }
+    if (meshEdit.active) setMeshComponent(id);
+    else if (editableSelected) {
+      beginMeshEdit(selectedId!);
+      setMeshComponent(id);
+    }
+  };
 
   return (
     <div className="scene-tools" onMouseLeave={close} data-tour="add">
@@ -123,6 +154,28 @@ export function SceneTools() {
       </div>
 
       <span className="tb-divider" />
+
+      {/* Component edit modes (object / vertex / edge / face) — 3D only, since mesh Edit Mode
+          is 3D-only. Object = whole-object selection; the rest enter/switch in-mesh editing. */}
+      {!is2D && (
+        <>
+          <div className="tb-tools" data-tour="modes">
+            {MODES.map((m) => (
+              <button
+                key={m.id}
+                className={`tb-icon ${modeActive(m.id) ? 'active' : ''}`}
+                disabled={modeDisabled(m.id)}
+                aria-pressed={modeActive(m.id)}
+                onClick={() => setMode(m.id)}
+                title={modeDisabled(m.id) ? `${m.label} mode (${m.key}) — select a mesh first` : `${m.label} mode (${m.key})`}
+              >
+                <m.icon size={16} />
+              </button>
+            ))}
+          </div>
+          <span className="tb-divider" />
+        </>
+      )}
 
       {/* Transform gizmo tools */}
       <div className="tb-tools" data-tour="tools">

@@ -30,6 +30,43 @@ describe('SceneTools', () => {
     expect(screen.getByRole('button', { name: /FX/ })).toBeDisabled();
   });
 
+  it('drives Edit Mode from the component-mode buttons (object/vertex/edge/face)', async () => {
+    useEditorStore.setState({
+      mode: '3d', entities: [],
+      meshEdit: { active: false, entityId: null, component: 'face', selection: [], sculpt: null, tool: 'select' },
+    });
+    const id = useEditorStore.getState().addPrimitive('box'); // selects it
+    render(<SceneTools />);
+
+    // Object mode is "active" while not editing.
+    expect(screen.getByTitle(/^Object mode/)).toHaveAttribute('aria-pressed', 'true');
+
+    // Vertex enters Edit Mode on the selected mesh and sets the component.
+    await userEvent.click(screen.getByTitle(/^Vertex mode/));
+    let me = useEditorStore.getState().meshEdit;
+    expect(me.active).toBe(true);
+    expect(me.entityId).toBe(id);
+    expect(me.component).toBe('vertex');
+
+    // Edge switches the component while staying in Edit Mode.
+    await userEvent.click(screen.getByTitle(/^Edge mode/));
+    expect(useEditorStore.getState().meshEdit.component).toBe('edge');
+
+    // Object leaves Edit Mode.
+    await userEvent.click(screen.getByTitle(/^Object mode/));
+    expect(useEditorStore.getState().meshEdit.active).toBe(false);
+  });
+
+  it('disables vertex/edge/face when no mesh is selected', () => {
+    useEditorStore.setState({
+      mode: '3d', entities: [], selectedId: null,
+      meshEdit: { active: false, entityId: null, component: 'face', selection: [], sculpt: null, tool: 'select' },
+    });
+    render(<SceneTools />);
+    expect(screen.getByTitle(/^Vertex mode/)).toBeDisabled();
+    expect(screen.getByTitle(/^Object mode/)).toBeEnabled(); // object is always available
+  });
+
   it('shows the Surfaces toggle only in Edit Mode and flips showSurfaces', async () => {
     useEditorStore.setState({
       mode: '3d',

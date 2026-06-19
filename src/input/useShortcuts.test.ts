@@ -8,10 +8,16 @@ const state = {
   keymap: 'blender' as const, // Blender binds playToggle to Space — the bug case
   selectedId: null as string | null,
   showShortcuts: false,
+  mode: '3d' as '2d' | '3d',
+  entities: [] as Array<{ id: string; mesh?: unknown }>,
+  meshEdit: { active: false, component: 'face' as 'vertex' | 'edge' | 'face' },
   play: vi.fn(),
   pause: vi.fn(),
   stop: vi.fn(),
   setShowShortcuts: vi.fn(),
+  setMeshComponent: vi.fn(),
+  beginMeshEdit: vi.fn(),
+  endMeshEdit: vi.fn(),
 };
 
 vi.mock('@/store/editorStore', () => ({
@@ -59,5 +65,51 @@ describe('useShortcuts — game owns the keyboard while playing', () => {
     press(' ');
     // 'paused' is not 'editing', so playToggle calls pause()/resume path, not play()
     expect(state.pause).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('useShortcuts — mesh component-mode keys (1/2/3/4)', () => {
+  beforeEach(() => {
+    state.playState = 'editing';
+    state.mode = '3d';
+    state.selectedId = null;
+    state.entities = [];
+    state.meshEdit = { active: false, component: 'face' };
+    vi.clearAllMocks();
+  });
+
+  it('switches component in Edit Mode (2 = vertex, 3 = edge, 4 = face)', () => {
+    state.meshEdit = { active: true, component: 'face' };
+    renderHook(() => useShortcuts());
+    press('2');
+    expect(state.setMeshComponent).toHaveBeenCalledWith('vertex');
+    press('3');
+    expect(state.setMeshComponent).toHaveBeenCalledWith('edge');
+    press('4');
+    expect(state.setMeshComponent).toHaveBeenCalledWith('face');
+  });
+
+  it('leaves Edit Mode on 1 (object) when editing', () => {
+    state.meshEdit = { active: true, component: 'vertex' };
+    renderHook(() => useShortcuts());
+    press('1');
+    expect(state.endMeshEdit).toHaveBeenCalledTimes(1);
+    expect(state.setMeshComponent).not.toHaveBeenCalled();
+  });
+
+  it('enters Edit Mode on 2/3/4 when a mesh entity is selected', () => {
+    state.selectedId = 'cube';
+    state.entities = [{ id: 'cube', mesh: {} }];
+    renderHook(() => useShortcuts());
+    press('3');
+    expect(state.beginMeshEdit).toHaveBeenCalledWith('cube');
+    expect(state.setMeshComponent).toHaveBeenCalledWith('edge');
+  });
+
+  it('does nothing on a component key when nothing editable is selected', () => {
+    renderHook(() => useShortcuts());
+    press('2');
+    expect(state.beginMeshEdit).not.toHaveBeenCalled();
+    expect(state.setMeshComponent).not.toHaveBeenCalled();
   });
 });
