@@ -4,7 +4,7 @@ import { defaultMaterial, defaultTerrain, defaultVolume } from '@/types';
 import { generateCode } from '@/nodes/codegen';
 import { makeNode } from '@/nodes/nodeTypes';
 import type { EditorState, StoreSet, StoreGet } from '../editorTypes';
-import { makeEntity, uniqueName, nextColor, v3 } from '../editorDefaults';
+import { makeEntity, uniqueName, nextColor, v3, syncLinkedEntities } from '../editorDefaults';
 
 type EntitySlice = Pick<
   EditorState,
@@ -28,6 +28,7 @@ type EntitySlice = Pick<
   | 'updateLight'
   | 'setPhysics'
   | 'setProp'
+  | 'resolveLinkedAssets'
 >;
 
 /** Entity authoring: create/remove/duplicate, transforms, mesh/light/physics edits. */
@@ -48,6 +49,15 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
       return e.id;
     },
 
+    resolveLinkedAssets: () => {
+      // Re-sync every linked (proxy) instance from its source asset (e.g. after republishing),
+      // so edits to the source object propagate to all references. Not an undoable edit.
+      set((s) => {
+        const entities = syncLinkedEntities(s.entities, s.assetLibrary.assets);
+        return entities === s.entities ? {} : { entities, sceneRevision: s.sceneRevision + 1 };
+      });
+    },
+
     addModelEntity: (assetId) => {
       get().record('add');
       const asset = get().assetLibrary.assets.find((a) => a.id === assetId);
@@ -56,7 +66,15 @@ export function createEntitySlice(set: StoreSet, get: StoreGet): EntitySlice {
       // editable custom mesh; file-backed models reference the asset id for the loader.
       const mesh =
         asset?.source === 'generated' && asset.geometry
-          ? { kind: 'custom' as const, color: asset.meshColor ?? nextColor(), visible: true, custom: asset.geometry, material: asset.meshMaterial }
+          ? {
+              kind: 'custom' as const,
+              color: asset.meshColor ?? nextColor(),
+              visible: true,
+              custom: asset.geometry,
+              material: asset.meshMaterial,
+              // Reference assets stay linked (proxy): re-synced from the asset on every load.
+              ...(asset.reference ? { linkedAssetId: asset.id } : {}),
+            }
           : { kind: 'model' as const, assetId, color: '#ffffff', visible: true };
       const e = makeEntity({
         name,

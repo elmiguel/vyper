@@ -46,6 +46,12 @@ export function ModelerInspector() {
   const makeAsset = useModelerStore((s) => s.makeSelectedObjectAsset);
   const removeAsset = useModelerStore((s) => s.removeSelectedObjectAsset);
   const assetId = useModelerStore((s) => s.selectedObjectAssetId)();
+  const setReference = useModelerStore((s) => s.setSelectedObjectReference);
+  // Derive the reference flag from a *subscribed* asset list so the checkbox re-renders when the
+  // flag flips (the asset lives in editorStore.assetLibrary, which this panel otherwise doesn't
+  // watch — without this the controlled checkbox snaps back to its stale value).
+  const assets = useEditorStore((s) => s.assetLibrary.assets);
+  const isReference = !!assets.find((a) => a.id === assetId)?.reference;
   const objectSelected = component === 'object' && selection.length > 0;
 
   // Rotation is dialed as an absolute angle per axis *for the current selection*: we apply the
@@ -134,6 +140,19 @@ export function ModelerInspector() {
                   ? 'Saved to the asset library with its material + textures — reusable in the game studio.'
                   : 'Saves just this object (geometry + material + textures) to the asset library.'}
               </div>
+              {assetId && (
+                <>
+                  <label className="field check">
+                    <input type="checkbox" checked={isReference} onChange={(e) => setReference(e.target.checked)} />
+                    Make reference (linked proxy)
+                  </label>
+                  <div className="empty-hint inline">
+                    {isReference
+                      ? 'Instances in the game stay linked — re-saving this object updates them on load.'
+                      : 'Instances are independent copies; turn on to keep them linked to this source.'}
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <div className="empty-hint">Select an object (Object mode) to save it as an asset.</div>

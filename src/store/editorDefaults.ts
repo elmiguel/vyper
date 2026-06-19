@@ -1,5 +1,5 @@
 import { nanoid } from 'nanoid';
-import type { Entity, GameMode, Vec3 } from '@/types';
+import type { Asset, Entity, GameMode, Vec3 } from '@/types';
 
 /** Construct a Vec3 (defaults to the zero vector). */
 export const v3 = (x = 0, y = 0, z = 0): Vec3 => ({ x, y, z });
@@ -33,6 +33,24 @@ export function dedupeEntityIds(entities: Entity[]): Entity[] {
     const id = nanoid(8);
     seen.add(id);
     return { ...e, id };
+  });
+  return changed ? out : entities;
+}
+
+/**
+ * Re-sync linked (proxy) instances from their source assets. Each entity whose mesh has a
+ * `linkedAssetId` adopts that generated asset's geometry/material/colour, so edits to the source
+ * object propagate to all references. Returns the same array when nothing is linked (no churn).
+ */
+export function syncLinkedEntities(entities: Entity[], assets: Asset[]): Entity[] {
+  let changed = false;
+  const out = entities.map((e) => {
+    const id = e.mesh?.linkedAssetId;
+    if (!id) return e;
+    const a = assets.find((x) => x.id === id);
+    if (!a || a.source !== 'generated' || !a.geometry) return e;
+    changed = true;
+    return { ...e, mesh: { ...e.mesh!, kind: 'custom' as const, custom: a.geometry, material: a.meshMaterial, color: a.meshColor ?? e.mesh!.color } };
   });
   return changed ? out : entities;
 }

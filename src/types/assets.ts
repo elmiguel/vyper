@@ -40,6 +40,10 @@ export interface Asset {
   meshMaterial?: MaterialConfig;
   /** Base colour (hex) for a generated object, applied on import. */
   meshColor?: string;
+  /** When true, instances added to a scene stay *linked* to this asset (proxy): they re-sync
+   *  from it on every load, so editing + re-saving the source object updates them. Toggled by
+   *  the Modeling Studio's "Make reference" toggle. Absent/false = instances are plain copies. */
+  reference?: boolean;
   /** URL prefix the files are served from. Built-ins default to '/assets/';
    *  uploaded assets use '/uploads/'. */
   rootUrl?: string;

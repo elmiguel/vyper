@@ -102,25 +102,25 @@ export function createMeshEditSlice(set: StoreSet, get: StoreGet): MeshEditSlice
       return id;
     },
 
-    saveModelerObjectAsset: (name, geo, material, color) => {
-      const id = `gen-${nanoid(8)}`;
+    saveModelerObjectAsset: (name, geo, material, color, existingId) => {
+      const id = existingId ?? `gen-${nanoid(8)}`;
       const maps = materialMapUrls(material);
       // The texture viewer resolves `rootUrl + filename`, so derive the root from the maps
       // (they live under /uploads or /assets, not the default) — otherwise the images 404.
       const rootUrl = maps.length ? maps[0].slice(0, maps[0].lastIndexOf('/') + 1) : undefined;
-      const asset: Asset = {
-        id,
-        name: name || 'Object',
-        type: 'model',
-        source: 'generated',
-        format: 'mesh',
+      const fields = {
         rootUrl,
         textures: maps.map((u) => u.slice(u.lastIndexOf('/') + 1)),
         geometry: geo,
         meshMaterial: material,
         meshColor: color,
       };
-      get().addAsset(asset);
+      if (existingId) {
+        // Republish: update geometry/material in place, keeping the asset's id + reference flag.
+        get().updateAsset(existingId, fields);
+      } else {
+        get().addAsset({ id, name: name || 'Object', type: 'model', source: 'generated', format: 'mesh', ...fields });
+      }
       // Ensure any texture the object uses is itself in the library (custom maps travel with it).
       const have = new Set(get().assetLibrary.assets.filter((a) => a.type === 'texture').map(textureUrlOf));
       for (const url of maps) {

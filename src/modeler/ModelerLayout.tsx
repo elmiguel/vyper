@@ -1,12 +1,21 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { DockviewReact, type DockviewApi, type DockviewReadyEvent } from 'dockview';
 import 'dockview/dist/styles/dockview.css';
 import { Home, Save, Loader2, Boxes, Image } from 'lucide-react';
 import { useProjectStore } from '@/store/projectStore';
 import { useEditorStore } from '@/store/editorStore';
+import { useModelerStore } from './modelerStore';
 import { AssetBrowser } from '@/assets/AssetBrowser';
 import { AssetViewer } from '@/assets/AssetViewer';
 import { modelerDockComponents, buildModelerLayout } from './modelerPanels';
+import { publishGlobalLibrary } from '@/store/globalLibrary';
+
+/** Persist every reference (proxy) asset to the shared library and wait for it, so opening a game
+ *  right after saving resolves the latest version (no read-before-write race). */
+async function syncSharedLibrary() {
+  const refs = useEditorStore.getState().assetLibrary.assets.filter((a) => a.source === 'generated' && a.reference);
+  await publishGlobalLibrary(refs).catch(() => {});
+}
 
 /**
  * The standalone 3D Modeling area — a dedicated workspace separate from the game editor.
@@ -22,17 +31,32 @@ export function ModelerLayout() {
   const goHome = useProjectStore((s) => s.goHome);
   const openAssets = useEditorStore((s) => s.setShowAssetBrowser);
 
+  // Save the model after first republishing any objects exported as assets, so editing the
+  // source propagates to its asset (and to linked/reference instances on their next load).
+  const saveModel = useCallback(async () => {
+    useModelerStore.getState().republishLinkedObjects();
+    await syncSharedLibrary();
+    return save({ snapshot: 'manual' });
+  }, [save]);
+
   // Cmd/Ctrl+S → save the model.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
-        void save({ snapshot: 'manual' });
+        void saveModel();
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [save]);
+  }, [saveModel]);
+
+  // Going home saves too — republish first so the asset reflects the latest edits.
+  const goHomeSaving = useCallback(async () => {
+    useModelerStore.getState().republishLinkedObjects();
+    await syncSharedLibrary();
+    void goHome();
+  }, [goHome]);
 
   const onReady = (event: DockviewReadyEvent) => {
     const api: DockviewApi = event.api;
@@ -46,7 +70,7 @@ export function ModelerLayout() {
   return (
     <div className="editor-root modeler-root">
       <div className="modeler-bar">
-        <button className="tb-icon" onClick={() => void goHome()} title="Save & back to home">
+        <button className="tb-icon" onClick={() => void goHomeSaving()} title="Save & back to home">
           <Home size={16} />
         </button>
         <span className="modeler-brand"><Boxes size={15} /> Modeling Studio</span>
@@ -57,7 +81,7 @@ export function ModelerLayout() {
         </button>
         <button
           className={`tb-btn save-btn ${dirty ? 'dirty' : ''}`}
-          onClick={() => void save({ snapshot: 'manual' })}
+          onClick={() => void saveModel()}
           disabled={saving}
           title="Save model (Cmd/Ctrl+S)"
         >

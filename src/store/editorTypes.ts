@@ -219,8 +219,9 @@ export interface EditorState {
   /** Save baked geometry to the asset library as a reusable generated model; returns its id. */
   saveMeshToLibrary: (name: string, geo: CustomGeometry) => string;
   /** Save a Modeling-Studio object (geometry + its material/colour) as a generated asset, and
-   *  ensure the material's texture maps are represented in the library; returns the asset id. */
-  saveModelerObjectAsset: (name: string, geo: CustomGeometry, material: MaterialConfig | undefined, color: string) => string;
+   *  ensure the material's texture maps are represented in the library; returns the asset id.
+   *  Pass `existingId` to update that asset in place (republish, keeping its id + reference flag). */
+  saveModelerObjectAsset: (name: string, geo: CustomGeometry, material: MaterialConfig | undefined, color: string, existingId?: string) => string;
 
   // rigging + animation (Modeling Studio)
   /** Enter Rig Mode for an entity (build/pose a skeleton, paint weights). */
@@ -337,6 +338,9 @@ export interface EditorState {
   /** Merge project-persisted generated assets (Modeling-Studio objects) into the library on
    *  open (by id). Not recorded as an undoable edit. */
   hydrateGeneratedAssets: (assets: Asset[]) => void;
+  /** Re-sync every linked (proxy) instance from its source asset (call on load, after the scene
+   *  + generated assets are hydrated). Not an undoable edit. */
+  resolveLinkedAssets: () => void;
   updateAsset: (id: string, patch: Partial<Asset>) => void;
   removeAsset: (id: string) => void;
   /** Delete a library asset (removes it from the library; uploaded assets are also

@@ -147,6 +147,10 @@ export interface MeshConfig {
   /** Modeling Studio: maps a focused object's island key (rounded centroid) → the library
    *  asset id it was exported to via the "Make asset" toggle. Drives the toggle's state. */
   objectAssets?: Record<string, string>;
+  /** When set, this mesh is a *linked* instance (proxy) of the given generated asset: on every
+   *  project load its geometry/material/colour are re-synced from that asset, so edits to the
+   *  source object propagate. Absent = an independent copy. Set when importing a `reference` asset. */
+  linkedAssetId?: string;
 }
 
 /** True when a mesh participates in world collision (physics + triggers). No mesh

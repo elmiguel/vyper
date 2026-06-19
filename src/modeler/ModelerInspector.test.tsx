@@ -84,4 +84,15 @@ describe('ModelerInspector', () => {
     expect(generated).toHaveLength(1);
     expect(generated[0].geometry!.positions.length).toBeGreaterThan(0);
   });
+
+  it('Make reference checkbox toggles and reflects the change (reactive)', () => {
+    render(<ModelerInspector />);
+    fireEvent.click(screen.getByLabelText(/Make asset/i)); // must be an asset first
+    const ref = screen.getByLabelText(/Make reference/i) as HTMLInputElement;
+    expect(ref.checked).toBe(false);
+    fireEvent.click(ref);
+    expect(ref.checked).toBe(true); // re-renders from the subscribed asset list
+    const id = s().selectedObjectAssetId()!;
+    expect(useEditorStore.getState().assetLibrary.assets.find((a) => a.id === id)!.reference).toBe(true);
+  });
 });
