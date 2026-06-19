@@ -100,7 +100,7 @@ export function MaterialEditor({ entity, disabled }: { entity: Entity; disabled?
           ))}
           <option value={BROWSE}>Browse assets…</option>
         </select>
-        <button className="field-btn" disabled={disabled} title="Browse the asset library — import a material / textures" onClick={() => { openAssets(true); console.error('[assets] Browse clicked → showAssetBrowser =', useEditorStore.getState().showAssetBrowser); }}>Browse</button>
+        <button className="field-btn" disabled={disabled} title="Browse the asset library — import a material / textures" onClick={() => openAssets(true)}>Browse</button>
         <button className="field-btn" disabled={disabled} title="Save this mesh's material as a reusable preset" onClick={onSave}>Save</button>
       </div>
 
