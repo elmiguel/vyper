@@ -29,6 +29,18 @@ function islandVerts(mesh: HalfEdgeMesh, faces: number[]): number[] {
   return [...set];
 }
 
+/** Index of the centre nearest `target` (squared distance), or -1 if the list is empty. */
+function nearestIndex(centers: number[][], target: number[]): number {
+  let best = -1;
+  let bestD = Infinity;
+  for (let i = 0; i < centers.length; i++) {
+    const c = centers[i];
+    const d = (c[0] - target[0]) ** 2 + (c[1] - target[1]) ** 2 + (c[2] - target[2]) ** 2;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best;
+}
+
 /** The project mesh entity the modeler mirrors into (also holds colour + material). */
 function meshEntity() {
   return useEditorStore.getState().entities.find((e) => e.mesh);
@@ -51,12 +63,31 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
     return s.component === 'object' && s.selection.length > 0 ? s.selection : null;
   };
 
-  /** The asset id the focused object is currently linked to, or null. */
-  const linkedId = (): string | null => {
+  /**
+   * The asset-link entry bound to the currently focused island, tolerant of edits that move the
+   * island's centroid. Matched by mutual nearest: each stored entry "owns" the island closest to
+   * its key, and the focused island claims the entry whose owner is the focused island itself.
+   * (An exact centroid-key match breaks the instant you edit the mesh, which used to mint a brand
+   * new asset id on every save and orphan the instances already placed in a game.)
+   */
+  const linkedEntry = (): { key: string; id: string } | null => {
     if (!focusedFaces()) return null;
     const ent = meshEntity();
-    return ent?.mesh?.objectAssets?.[islandKey(ctx.get().selectionBounds())] ?? null;
+    const map = ent?.mesh?.objectAssets;
+    if (!map || Object.keys(map).length === 0) return null;
+    const mesh = ctx.mesh();
+    const centers = allIslands(mesh).map((f) => selectionBounds(mesh, islandVerts(mesh, f)).center);
+    if (centers.length === 0) return null;
+    const focusIdx = nearestIndex(centers, ctx.get().selectionBounds().center);
+    for (const [key, id] of Object.entries(map)) {
+      const k = key.split(',').map(Number);
+      if (nearestIndex(centers, k) === focusIdx) return { key, id };
+    }
+    return null;
   };
+
+  /** The asset id the focused object is currently linked to, or null. */
+  const linkedId = (): string | null => linkedEntry()?.id ?? null;
 
   return {
     selectedObjectAssetId: linkedId,
@@ -87,14 +118,17 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
       if (!geo.uvs?.length) geo.uvs = computeBoxUVs(geo.positions, geo.normals);
       const ed = useEditorStore.getState();
       // Re-run on an already-exported object republishes in place (keeps id + reference flag),
-      // so linked instances pick up the edit on their next load.
-      const existing = linkedId();
-      const id = ed.saveModelerObjectAsset(ent.name || 'Object', geo, ent.mesh.material, ent.mesh.color, existing ?? undefined);
+      // so linked instances pick up the edit on their next load — never mints a second id.
+      const existing = linkedEntry();
+      const id = ed.saveModelerObjectAsset(ent.name || 'Object', geo, ent.mesh.material, ent.mesh.color, existing?.id ?? undefined);
       // Register the object's material as a reusable preset so it shows in the Material dropdown
       // (reused by name, so repeated saves update rather than duplicate).
       if (ent.mesh.material) ed.saveMaterialPreset(`${ent.name || 'Object'} material`, ent.mesh.material);
-      const key = islandKey(ctx.get().selectionBounds());
-      ed.updateMesh(ent.id, { objectAssets: { ...(ent.mesh.objectAssets ?? {}), [key]: id } });
+      // Re-key to the object's current centroid; drop the old key so edits don't leave stale entries.
+      const map = { ...(ent.mesh.objectAssets ?? {}) };
+      if (existing) delete map[existing.key];
+      map[islandKey(ctx.get().selectionBounds())] = id;
+      ed.updateMesh(ent.id, { objectAssets: map });
       return id;
     },
 
@@ -103,16 +137,14 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
       if (!faces) return;
       const ent = meshEntity();
       if (!ent || !ent.mesh) return;
-      const key = islandKey(ctx.get().selectionBounds());
+      const entry = linkedEntry();
+      if (!entry) return;
       const map = { ...(ent.mesh.objectAssets ?? {}) };
-      const id = map[key];
-      delete map[key];
+      delete map[entry.key];
       const ed = useEditorStore.getState();
       ed.updateMesh(ent.id, { objectAssets: map });
-      if (id) {
-        ed.deleteAsset(id);
-        void unpublishGlobalLibrary(id).catch(() => {});
-      }
+      ed.deleteAsset(entry.id);
+      void unpublishGlobalLibrary(entry.id).catch(() => {});
     },
 
     republishLinkedObjects: () => {

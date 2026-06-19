@@ -91,6 +91,16 @@ describe('Make asset (Modeling Studio)', () => {
     expect(ed().assetLibrary.assets.filter((a) => a.source === 'generated' && a.type === 'model')).toHaveLength(1); // same id, no dup
   });
 
+  it('keeps the same asset id when re-made after an edit moves the object (no proliferation)', () => {
+    const id = s().makeSelectedObjectAsset()!;
+    // Edit the object so its centroid drifts — the old exact-centroid key no longer matches.
+    s().setSelectionCenter('y', 5);
+    // Re-making (or the inspector re-reading the link) must resolve the SAME asset, not mint a new one.
+    expect(s().selectedObjectAssetId()).toBe(id);
+    expect(s().makeSelectedObjectAsset()).toBe(id);
+    expect(ed().assetLibrary.assets.filter((a) => a.source === 'generated' && a.type === 'model')).toHaveLength(1);
+  });
+
   it('non-reference asset: instances are independent copies (no link)', () => {
     const id = s().makeSelectedObjectAsset()!; // reference left off
     const eid = ed().addModelEntity(id);
