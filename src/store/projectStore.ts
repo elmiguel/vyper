@@ -472,6 +472,14 @@ function scheduleAutosave() {
   }, AUTOSAVE_DEBOUNCE);
 }
 
+/** Signature of project-owned (generated) assets so changes to them — make/republish/reference
+ *  toggle — mark the project dirty, while builtin/uploaded manifest loads (not generated) don't. */
+function genAssetsSig(assets: Asset[]): string {
+  let sig = '';
+  for (const a of assets) if (a.source === 'generated') sig += `${a.id}:${a.reference ? 1 : 0}:${a.geometry?.positions.length ?? 0}|`;
+  return sig;
+}
+
 // Mark the project dirty when scene-affecting editor state changes while editing.
 useEditorStore.subscribe((s, prev) => {
   const p = useProjectStore.getState();
@@ -484,7 +492,8 @@ useEditorStore.subscribe((s, prev) => {
     s.materialPresets !== prev.materialPresets ||
     s.workspace !== prev.workspace ||
     s.gameCamera !== prev.gameCamera ||
-    s.gridVisible !== prev.gridVisible
+    s.gridVisible !== prev.gridVisible ||
+    (s.assetLibrary !== prev.assetLibrary && genAssetsSig(s.assetLibrary.assets) !== genAssetsSig(prev.assetLibrary.assets))
   ) {
     if (!p.dirty) useProjectStore.setState({ dirty: true });
     scheduleAutosave();
