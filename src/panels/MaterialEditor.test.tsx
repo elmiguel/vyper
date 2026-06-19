@@ -65,6 +65,13 @@ describe('MaterialEditor', () => {
     expect(useEditorStore.getState().showAssetBrowser).toBe(true);
   });
 
+  it('the Browse button opens the asset browser', () => {
+    useEditorStore.setState({ showAssetBrowser: false });
+    render(<MaterialEditor entity={box()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Browse' }));
+    expect(useEditorStore.getState().showAssetBrowser).toBe(true);
+  });
+
   it('offers an "Import textures…" option in map slots that opens the asset browser', () => {
     useEditorStore.setState({ showAssetBrowser: false });
     render(<MaterialEditor entity={box()} />);
