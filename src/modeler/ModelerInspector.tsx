@@ -46,6 +46,8 @@ export function ModelerInspector() {
   const makeAsset = useModelerStore((s) => s.makeSelectedObjectAsset);
   const removeAsset = useModelerStore((s) => s.removeSelectedObjectAsset);
   const assetId = useModelerStore((s) => s.selectedObjectAssetId)();
+  const isReference = useModelerStore((s) => s.selectedObjectIsReference)();
+  const setReference = useModelerStore((s) => s.setSelectedObjectReference);
   const objectSelected = component === 'object' && selection.length > 0;
 
   // Rotation is dialed as an absolute angle per axis *for the current selection*: we apply the
@@ -134,6 +136,19 @@ export function ModelerInspector() {
                   ? 'Saved to the asset library with its material + textures — reusable in the game studio.'
                   : 'Saves just this object (geometry + material + textures) to the asset library.'}
               </div>
+              {assetId && (
+                <>
+                  <label className="field check">
+                    <input type="checkbox" checked={isReference} onChange={(e) => setReference(e.target.checked)} />
+                    Make reference (linked proxy)
+                  </label>
+                  <div className="empty-hint inline">
+                    {isReference
+                      ? 'Instances in the game stay linked — re-saving this object updates them on load.'
+                      : 'Instances are independent copies; turn on to keep them linked to this source.'}
+                  </div>
+                </>
+              )}
             </>
           ) : (
             <div className="empty-hint">Select an object (Object mode) to save it as an asset.</div>

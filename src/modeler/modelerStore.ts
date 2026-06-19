@@ -93,6 +93,10 @@ export interface ModelerState extends MeshActions {
   removeSelectedObjectAsset: () => void;
   /** The asset id the focused object is linked to (drives the "Make asset" toggle), or null. */
   selectedObjectAssetId: () => string | null;
+  /** Whether the focused object's asset is a reference/proxy (instances re-sync on load). */
+  selectedObjectIsReference: () => boolean;
+  /** Toggle the focused object's asset between reference (linked instances) and copy. */
+  setSelectedObjectReference: (on: boolean) => void;
   setTool: (tool: ModelerTool) => void;
   /** Activate/clear an interactive edit tool; toggling the active one returns to 'none'. */
   setEditTool: (tool: EditTool) => void;

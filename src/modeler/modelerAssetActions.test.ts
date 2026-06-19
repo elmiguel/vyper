@@ -60,6 +60,33 @@ describe('Make asset (Modeling Studio)', () => {
     expect(s().makeSelectedObjectAsset()).toBeNull();
   });
 
+  it('reference toggle: instances link, republish updates in place, resolve re-syncs', () => {
+    const id = s().makeSelectedObjectAsset()!;
+    // Turn it into a reference/proxy asset.
+    s().setSelectedObjectReference(true);
+    expect(s().selectedObjectIsReference()).toBe(true);
+    expect(ed().assetLibrary.assets.find((a) => a.id === id)!.reference).toBe(true);
+
+    // An instance added to the scene is linked to the asset.
+    const eid = ed().addModelEntity(id);
+    expect(ed().entities.find((e) => e.id === eid)!.mesh!.linkedAssetId).toBe(id);
+
+    // Re-running Make asset republishes in place (same id, reference flag kept).
+    expect(s().makeSelectedObjectAsset()).toBe(id);
+    expect(ed().assetLibrary.assets.find((a) => a.id === id)!.reference).toBe(true);
+
+    // After the asset's geometry changes, resolving re-syncs the linked instance.
+    ed().updateAsset(id, { geometry: { positions: [7, 7, 7], indices: [], normals: [] } });
+    ed().resolveLinkedAssets();
+    expect(ed().entities.find((e) => e.id === eid)!.mesh!.custom!.positions).toEqual([7, 7, 7]);
+  });
+
+  it('non-reference asset: instances are independent copies (no link)', () => {
+    const id = s().makeSelectedObjectAsset()!; // reference left off
+    const eid = ed().addModelEntity(id);
+    expect(ed().entities.find((e) => e.id === eid)!.mesh!.linkedAssetId).toBeUndefined();
+  });
+
   it('generated assets are captured by generatedAssetsOf for persistence', () => {
     const id = s().makeSelectedObjectAsset()!;
     const settings = { generatedAssets: ed().assetLibrary.assets.filter((a) => a.source === 'generated') };

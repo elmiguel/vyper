@@ -26,6 +26,7 @@ function meshEntity() {
 export function createAssetActions(ctx: EditActionsCtx): Pick<
   ModelerState,
   'makeSelectedObjectAsset' | 'removeSelectedObjectAsset' | 'selectedObjectAssetId'
+  | 'setSelectedObjectReference' | 'selectedObjectIsReference'
 > {
   /** Faces of the focused object, or null when no whole object is selected (Object mode). */
   const focusedFaces = (): number[] | null => {
@@ -33,12 +34,25 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
     return s.component === 'object' && s.selection.length > 0 ? s.selection : null;
   };
 
+  /** The asset id the focused object is currently linked to, or null. */
+  const linkedId = (): string | null => {
+    if (!focusedFaces()) return null;
+    const ent = meshEntity();
+    return ent?.mesh?.objectAssets?.[islandKey(ctx.get().selectionBounds())] ?? null;
+  };
+
   return {
-    selectedObjectAssetId: () => {
-      const faces = focusedFaces();
-      if (!faces) return null;
-      const ent = meshEntity();
-      return ent?.mesh?.objectAssets?.[islandKey(ctx.get().selectionBounds())] ?? null;
+    selectedObjectAssetId: linkedId,
+
+    selectedObjectIsReference: () => {
+      const id = linkedId();
+      if (!id) return false;
+      return !!useEditorStore.getState().assetLibrary.assets.find((a) => a.id === id)?.reference;
+    },
+
+    setSelectedObjectReference: (on) => {
+      const id = linkedId();
+      if (id) useEditorStore.getState().updateAsset(id, { reference: on });
     },
 
     makeSelectedObjectAsset: () => {
@@ -51,7 +65,10 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
       // the asset's textures have nowhere to map (renders flat/black in the scene + preview).
       if (!geo.uvs?.length) geo.uvs = computeBoxUVs(geo.positions, geo.normals);
       const ed = useEditorStore.getState();
-      const id = ed.saveModelerObjectAsset(ent.name || 'Object', geo, ent.mesh.material, ent.mesh.color);
+      // Re-run on an already-exported object republishes in place (keeps id + reference flag),
+      // so linked instances pick up the edit on their next load.
+      const existing = linkedId();
+      const id = ed.saveModelerObjectAsset(ent.name || 'Object', geo, ent.mesh.material, ent.mesh.color, existing ?? undefined);
       // Register the object's material as a reusable preset so it shows in the Material dropdown
       // (reused by name, so repeated saves update rather than duplicate).
       if (ent.mesh.material) ed.saveMaterialPreset(`${ent.name || 'Object'} material`, ent.mesh.material);

@@ -207,9 +207,18 @@ asset library as a `generated` model:
   open via `hydrateGeneratedAssets`) — previously they were in-memory only and lost on reload.
   Re-importing into the game studio drops in an editable copy with its material applied.
 
-> Follow-up (not yet built): a **Make reference** toggle so game-studio instances stay linked
-> to the source object and update on load (a proxy/linked-asset system) — this PR is the
-> "copy import" half; the linked half is the next phase.
+### Make reference (linked proxy instances)
+
+Once an object is an asset, a **Make reference** toggle marks it as a *linked* asset
+(`Asset.reference`). How instances behave when dropped into the game (`addModelEntity`):
+
+- **Reference on** → the instance is tagged with `mesh.linkedAssetId` (a proxy). On every
+  project load it re-syncs its geometry/material/colour from the source asset
+  (`syncLinkedEntities`, run inside `hydrateScene`), so edits to the source propagate to all
+  references. Re-running **Make asset** republishes the asset **in place** (same id, reference
+  flag kept), and `resolveLinkedAssets()` re-syncs open instances.
+- **Reference off** (default) → the instance is an independent **copy**, unaffected by later
+  source changes.
 
 ### Project thumbnail
 
