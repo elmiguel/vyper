@@ -15,7 +15,7 @@ the scene:
 
 | | 3D | 2D |
 | --- | --- | --- |
-| Editor camera | orbit (perspective) | orthographic, head-on XY, locked orbit (wheel zoom, ctrl/middle-drag pan) |
+| Editor camera | orbit (perspective) | orthographic, head-on XY, locked orbit (wheel zoom, middle-drag pan) |
 | Game camera | free perspective rig | orthographic frame, pans in XY at a fixed depth |
 | Grid | XZ floor | XY plane, facing the camera |
 | Primitives | box, sphere, cylinder, cone, plane, ground | square, circle, triangle, plane |

@@ -44,6 +44,16 @@ export function applyGameCameraTransform(
 const MIDDLE_MOUSE = 1;
 const LEFT_MOUSE = 0;
 
+/**
+ * Apply the editor camera's panning defaults: pan with the middle-mouse drag only, and
+ * disable Babylon's ctrl+left-drag pan. Must run after every `attachControl`, since that
+ * resets both to Babylon's defaults (right-mouse + ctrl-for-panning on).
+ */
+export function applyEditorPanDefaults(camera: ArcRotateCamera): void {
+  camera._panningMouseButton = MIDDLE_MOUSE;
+  camera._useCtrlForPanning = false;
+}
+
 /** Tracks which gizmos have already had their drag-end handler wired. */
 export interface WiredGizmos {
   move: boolean;
@@ -131,7 +141,7 @@ export function createEditorCamera(scene: Scene, mode: GameMode, canvas: HTMLCan
   if (is2D) {
     // 2D: orthographic editor camera facing the XY plane head-on from -Z (looking
     // toward +Z, up = +Y) so +X is screen-right — the standard 2D orientation.
-    // Orbit is locked; pan with middle/ctrl-drag, zoom with the wheel (drives ortho bounds).
+    // Orbit is locked; pan with the middle-mouse drag, zoom with the wheel (drives ortho bounds).
     cam = new ArcRotateCamera('editorCam', -Math.PI / 2, Math.PI / 2, 16, new Vector3(0, 0, 0), scene);
     cam.mode = Camera.ORTHOGRAPHIC_CAMERA;
     cam.angularSensibilityX = 1e12; // effectively no rotation
@@ -142,9 +152,9 @@ export function createEditorCamera(scene: Scene, mode: GameMode, canvas: HTMLCan
   cam.wheelPrecision = is2D ? 18 : 30;
   cam.lowerRadiusLimit = 2;
   cam.attachControl(canvas, true);
-  // Middle-mouse drag pans the scene (Babylon's default pan button is right-mouse);
-  // ctrl+left-drag also pans (attachControl leaves _useCtrlForPanning on by default).
-  cam._panningMouseButton = MIDDLE_MOUSE;
+  // Pan with the middle-mouse drag only (Babylon's default pan button is right-mouse, and it
+  // also pans on ctrl+left-drag) — see applyEditorPanDefaults.
+  applyEditorPanDefaults(cam);
   // The editor camera sees everything, including editor-only helpers.
   cam.layerMask = DEFAULT_LAYER | EDITOR_LAYER;
   // Reserve the right mouse button for context menus (ArcRotate orbits with it by default).

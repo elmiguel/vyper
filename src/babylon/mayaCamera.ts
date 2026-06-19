@@ -1,6 +1,6 @@
 import type { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { Vector3 } from '@babylonjs/core/Maths/math.vector';
-import { setupEditorPanControls } from './cameraRig';
+import { setupEditorPanControls, applyEditorPanDefaults } from './cameraRig';
 
 /** Teardowns for whichever navigation scheme is currently installed. */
 export interface NavHandles {
@@ -29,10 +29,12 @@ export function applyNavigation(
     // orbit-on-drag pointer input, leaving wheel/keyboard and scene picking intact.
     return { maya: setupMayaCameraControls(canvas, camera) };
   }
-  // Restore default navigation: re-add the orbit pointer input and re-attach.
+  // Restore default navigation: re-add the orbit pointer input and re-attach. attachControl
+  // resets the pan defaults, so re-apply middle-mouse-only panning afterward.
   camera.detachControl();
   camera.inputs.addPointers();
   camera.attachControl(canvas, true);
+  applyEditorPanDefaults(camera);
   return { pan: setupEditorPanControls(canvas, camera, isPlaying) };
 }
 

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { setupEditorPanControls } from './cameraRig';
+import type { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
+import { setupEditorPanControls, applyEditorPanDefaults } from './cameraRig';
 
 const MIDDLE = 1;
 const LEFT = 0;
@@ -105,5 +106,15 @@ describe('setupEditorPanControls', () => {
     canvas.dispatchEvent(new Event('pointerenter'));
     window.dispatchEvent(spaceDown());
     expect(camera._panningMouseButton).toBe(MIDDLE);
+  });
+});
+
+describe('applyEditorPanDefaults', () => {
+  it('pans on middle-mouse and disables ctrl+left-drag panning', () => {
+    // Babylon's attachControl leaves these at right-mouse + ctrl-for-panning on.
+    const camera = { _panningMouseButton: 2, _useCtrlForPanning: true } as ArcRotateCamera;
+    applyEditorPanDefaults(camera);
+    expect(camera._panningMouseButton).toBe(MIDDLE);
+    expect(camera._useCtrlForPanning).toBe(false);
   });
 });
