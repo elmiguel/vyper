@@ -104,6 +104,7 @@ export function ModelPreview({ asset }: { asset: Asset }) {
       if (m?.normalMap) mat.bumpTexture = new Texture(m.normalMap, scene);
       mat.specularColor = new Color3(0.1, 0.1, 0.1);
       mat.backFaceCulling = false;
+      mat.twoSidedLighting = true; // light both sides correctly (kernel winding isn't uniform)
       mesh.material = mat;
       onReady([mesh], []);
     } else {

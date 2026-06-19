@@ -44,6 +44,8 @@ describe('Make asset (Modeling Studio)', () => {
     // A texture asset now backs that map URL.
     const tex = ed().assetLibrary.assets.find((a) => a.type === 'texture' && a.textures[0] === 'wood_diff.jpg');
     expect(tex).toBeTruthy();
+    // The material is registered as a reusable preset (so it shows in the Material dropdown).
+    expect(Object.values(ed().materialPresets).some((p) => p.name === 'Crate material')).toBe(true);
   });
 
   it('removeSelectedObjectAsset clears the link and deletes the asset', () => {

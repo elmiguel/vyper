@@ -52,6 +52,9 @@ export function createAssetActions(ctx: EditActionsCtx): Pick<
       if (!geo.uvs?.length) geo.uvs = computeBoxUVs(geo.positions, geo.normals);
       const ed = useEditorStore.getState();
       const id = ed.saveModelerObjectAsset(ent.name || 'Object', geo, ent.mesh.material, ent.mesh.color);
+      // Register the object's material as a reusable preset so it shows in the Material dropdown
+      // (reused by name, so repeated saves update rather than duplicate).
+      if (ent.mesh.material) ed.saveMaterialPreset(`${ent.name || 'Object'} material`, ent.mesh.material);
       const key = islandKey(ctx.get().selectionBounds());
       ed.updateMesh(ent.id, { objectAssets: { ...(ent.mesh.objectAssets ?? {}), [key]: id } });
       return id;
