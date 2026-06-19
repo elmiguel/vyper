@@ -24,6 +24,8 @@ describe('buildCustomMesh + toCustomGeometry', () => {
     expect(geo.indices).toEqual([0, 1, 2]);
     // Normals were absent → computed at build time, so they round-trip non-empty.
     expect(geo.normals.length).toBe(9);
+    // UVs were absent → generated (box projection) so textured materials can map.
+    expect(geo.uvs?.length).toBe(6);
 
     scene.dispose();
     engine.dispose();

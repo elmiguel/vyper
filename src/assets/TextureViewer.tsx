@@ -17,7 +17,14 @@ export function TextureViewer({ asset }: { asset: Asset }) {
   }
 
   const root = asset.rootUrl ?? ASSET_ROOT;
-  const src = `${root}${textures[Math.min(active, textures.length - 1)]}`;
+  // Generated Studio objects carry their texture maps as full URLs on the material; resolve from
+  // those (not rootUrl + filename, which can be wrong for older saves).
+  const m = asset.meshMaterial;
+  const genUrls = asset.source === 'generated' && m
+    ? ([m.baseColorMap, m.normalMap, m.roughnessMap, m.aoMap, m.emissiveMap].filter(Boolean) as string[])
+    : null;
+  const srcOf = (i: number) => genUrls?.[i] ?? `${root}${textures[i]}`;
+  const src = srcOf(Math.min(active, textures.length - 1));
 
   return (
     <div className="tex-viewer">
@@ -43,7 +50,7 @@ export function TextureViewer({ asset }: { asset: Asset }) {
         <div className="tex-strip">
           {textures.map((t, i) => (
             <button key={t} className={`tex-thumb ${i === active ? 'on' : ''}`} onClick={() => setActive(i)} title={t}>
-              <img src={`${root}${t}`} alt={t} />
+              <img src={srcOf(i)} alt={t} />
             </button>
           ))}
         </div>

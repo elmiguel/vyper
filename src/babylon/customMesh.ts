@@ -3,14 +3,14 @@ import { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { VertexData } from '@babylonjs/core/Meshes/mesh.vertexData';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { CustomGeometry } from '@/types';
+import { computeBoxUVs } from '@/kernel/render';
 
-/** Build a mesh from baked custom geometry (CSG result / sculpt). */
+/** Build a mesh from baked custom geometry (CSG result / sculpt / Studio object). */
 export function buildCustomMesh(scene: Scene, id: string, geo: CustomGeometry): AbstractMesh {
   const mesh = new Mesh(id, scene);
   const vd = new VertexData();
   vd.positions = geo.positions;
   vd.indices = geo.indices;
-  if (geo.uvs?.length) vd.uvs = geo.uvs;
   if (geo.normals.length) {
     vd.normals = geo.normals;
   } else {
@@ -18,6 +18,9 @@ export function buildCustomMesh(scene: Scene, id: string, geo: CustomGeometry): 
     VertexData.ComputeNormals(geo.positions, geo.indices, normals);
     vd.normals = normals;
   }
+  // Kernel geometry has no UVs; generate box/tri-planar UVs so textured materials render
+  // (without UVs every fragment samples one texel → flat/black). Also covers older saved meshes.
+  vd.uvs = geo.uvs?.length ? geo.uvs : computeBoxUVs(geo.positions, vd.normals as number[]);
   vd.applyToMesh(mesh, true);
   return mesh;
 }
