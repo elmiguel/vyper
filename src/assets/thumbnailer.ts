@@ -6,6 +6,7 @@ import { Vector3, Color3 } from '@babylonjs/core/Maths/math';
 import { Color4 } from '@babylonjs/core/Maths/math.color';
 import { SceneLoader } from '@babylonjs/core/Loading/sceneLoader';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
+import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import '@/babylon/loaders'; // register OBJ/glTF (idempotent)
 import type { Asset } from '@/types';
 import { buildCustomMesh } from '@/babylon/customMesh';
@@ -46,8 +47,11 @@ async function renderThumbnail(asset: Asset, size: number): Promise<string> {
     if (isGenerated) {
       const mesh = buildCustomMesh(scene, `gen-${asset.id}`, asset.geometry!);
       const mat = new StandardMaterial('gen-mat', scene);
-      mat.diffuseColor = hexToColor3(asset.meshColor ?? '#cccccc');
+      const m = asset.meshMaterial;
+      if (m?.baseColorMap) mat.diffuseTexture = new Texture(m.baseColorMap, scene);
+      else mat.diffuseColor = hexToColor3(asset.meshColor ?? '#cccccc');
       mat.backFaceCulling = false;
+      mat.twoSidedLighting = true;
       mesh.material = mat;
     } else {
       await SceneLoader.ImportMeshAsync(null, asset.rootUrl ?? ASSET_ROOT, asset.modelFile!, scene);
