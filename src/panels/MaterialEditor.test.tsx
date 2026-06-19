@@ -57,6 +57,14 @@ describe('MaterialEditor', () => {
     expect(screen.queryByText('Metallic')).not.toBeInTheDocument();
   });
 
+  it('the Material dropdown has a "Browse assets…" option that opens the asset browser', () => {
+    useEditorStore.setState({ showAssetBrowser: false });
+    render(<MaterialEditor entity={box()} />);
+    const matSelect = screen.getByText('Material').parentElement!.querySelector('select')!;
+    fireEvent.change(matSelect, { target: { value: '__browse__' } });
+    expect(useEditorStore.getState().showAssetBrowser).toBe(true);
+  });
+
   it('offers an "Import textures…" option in map slots that opens the asset browser', () => {
     useEditorStore.setState({ showAssetBrowser: false });
     render(<MaterialEditor entity={box()} />);
