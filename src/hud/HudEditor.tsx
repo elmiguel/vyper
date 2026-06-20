@@ -5,6 +5,7 @@ import type { HudWidget, HudWidgetKind } from '@/types';
 import { HUD_ASSETS } from './hudAssets';
 import { HudOverlay } from './HudOverlay';
 import { ContextMenu, type MenuItem } from '@/ui/ContextMenu';
+import { NumberInput } from '@/ui/NumberInput';
 
 /** Custom MIME carrying a widget kind from the palette to the stage on drop. */
 const HUD_DND = 'application/vyper-hud-kind';
@@ -249,7 +250,6 @@ const ANCHORS: { key: string; label: string; pos: (w: HudWidget) => { x: number;
 function HudInspector({ w, onChange, onDelete, onDup }: {
   w: HudWidget; onChange: (p: Partial<HudWidget>) => void; onDelete: () => void; onDup: () => void;
 }) {
-  const num = (v: string) => (v === '' ? 0 : parseFloat(v) || 0);
   const showsValue = ['score', 'ammo', 'timer', 'healthbar', 'bar'].includes(w.kind);
   const showsText = ['text', 'score', 'button', 'objective', 'icon', 'timer'].includes(w.kind);
   const showsBar = w.kind === 'healthbar' || w.kind === 'bar';
@@ -278,7 +278,7 @@ function HudInspector({ w, onChange, onDelete, onDup }: {
       <div className="hud-grid4">
         {(['x', 'y', 'w', 'h'] as const).map((k) => (
           <label key={k}><span>{k.toUpperCase()}</span>
-            <input type="number" step={0.5} value={Number(w[k].toFixed(1))} onChange={(e) => onChange({ [k]: num(e.target.value) })} />
+            <NumberInput step={0.5} value={w[k]} display={(n) => String(Number(n.toFixed(1)))} onChange={(v) => onChange({ [k]: v })} />
           </label>
         ))}
       </div>
@@ -294,8 +294,8 @@ function HudInspector({ w, onChange, onDelete, onDup }: {
         <>
           <h4>Value{showsBar ? ' / max' : ''}</h4>
           <div className="hud-grid4">
-            <label><span>Value</span><input type="number" value={w.value} onChange={(e) => onChange({ value: num(e.target.value) })} /></label>
-            {showsBar && <label><span>Max</span><input type="number" value={w.max} onChange={(e) => onChange({ max: num(e.target.value) })} /></label>}
+            <label><span>Value</span><NumberInput value={w.value} onChange={(v) => onChange({ value: v })} /></label>
+            {showsBar && <label><span>Max</span><NumberInput value={w.max} onChange={(v) => onChange({ max: v })} /></label>}
           </div>
           <h4>Bind to live value <span className="hud-unit">while playing</span></h4>
           <div className="hud-grid4">
@@ -318,9 +318,9 @@ function HudInspector({ w, onChange, onDelete, onDup }: {
         <label className="hud-check"><input type="checkbox" checked={w.bg === 'transparent'} onChange={(e) => onChange({ bg: e.target.checked ? 'transparent' : '#0b0a1c' })} /> Transparent background</label>
       )}
       <div className="hud-grid4">
-        {showsText && <label><span>Font</span><input type="number" value={w.fontSize} onChange={(e) => onChange({ fontSize: num(e.target.value) })} /></label>}
-        <label><span>Radius</span><input type="number" value={w.radius} onChange={(e) => onChange({ radius: num(e.target.value) })} /></label>
-        <label><span>Opacity</span><input type="number" step={0.05} min={0} max={1} value={w.opacity} onChange={(e) => onChange({ opacity: clamp(num(e.target.value), 0, 1) })} /></label>
+        {showsText && <label><span>Font</span><NumberInput value={w.fontSize} onChange={(v) => onChange({ fontSize: v })} /></label>}
+        <label><span>Radius</span><NumberInput value={w.radius} onChange={(v) => onChange({ radius: v })} /></label>
+        <label><span>Opacity</span><NumberInput step={0.05} min={0} max={1} value={w.opacity} onChange={(v) => onChange({ opacity: clamp(v, 0, 1) })} /></label>
       </div>
       {showsText && (
         <div className="hud-align">

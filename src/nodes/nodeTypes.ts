@@ -14,7 +14,7 @@ export const NODE_PALETTE: { category: NodeCategory; items: string[] }[] = [
   { category: 'trigger', items: ['trigger/onEnter', 'trigger/onExit', 'trigger/onStay'] },
   {
     category: 'action',
-    items: ['action/log', 'action/translate', 'action/rotate', 'action/setPosition', 'action/setProp', 'action/branch'],
+    items: ['action/log', 'action/translate', 'action/rotate', 'action/setPosition', 'action/respawn', 'action/setProp', 'action/branch'],
   },
   {
     category: 'value',
@@ -65,6 +65,27 @@ export const NODE_PALETTE: { category: NodeCategory; items: string[] }[] = [
     items: ['asset/playerController2D', 'asset/firstPersonController', 'asset/thirdPersonController'],
   },
 ];
+
+/**
+ * Filter the node palette by a free-text query, matching each item's display label or its kind id.
+ * Categories with no surviving items are dropped, but matching categories keep their header — so
+ * the palette stays grouped while searching. An empty/whitespace query returns the full palette.
+ */
+export function filterNodePalette(
+  palette: { category: NodeCategory; items: string[] }[],
+  query: string,
+): { category: NodeCategory; items: string[] }[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return palette;
+  return palette
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(
+        (kind) => (NODE_SPECS[kind]?.label.toLowerCase().includes(q) ?? false) || kind.toLowerCase().includes(q),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+}
 
 /** Asset kinds that are plug-and-play macro controllers (one node = full behaviour). */
 export const ASSET_KINDS = ['asset/playerController2D', 'asset/firstPersonController', 'asset/thirdPersonController'] as const;

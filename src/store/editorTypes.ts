@@ -114,6 +114,9 @@ export interface EditorState {
   selectedId: string | null;
   /** Selected script tab in the script/node editor. */
   activeScriptId: string | null;
+  /** Last script the user opened per entity id, so re-selecting an object reopens that script
+   *  (else its first). Lets selection auto-focus a behaviour without manual navigation. */
+  lastScriptByEntity: Record<string, string>;
   /** Effect currently open in the Effects editor (entity + effect id), or null. */
   activeEffect: { entityId: string; effectId: string } | null;
   playState: PlayState;

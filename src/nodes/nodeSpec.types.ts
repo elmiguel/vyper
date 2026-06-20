@@ -1,4 +1,4 @@
-export type DataKind = 'number' | 'vec3' | 'string' | 'bool' | 'entity';
+export type DataKind = 'number' | 'vec3' | 'string' | 'bool' | 'entity' | 'any';
 export type NodeCategory = 'event' | 'action' | 'value' | 'physics' | 'assets' | 'objective' | 'fx' | 'camera' | 'world' | 'trigger';
 
 export interface PortSpec {

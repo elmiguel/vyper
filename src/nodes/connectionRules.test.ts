@@ -12,6 +12,8 @@ const nodes = [
   node('onkey', 'event/keyDown'),
   node('branch', 'action/branch'),
   node('log', 'action/log'),
+  node('pos', 'value/position'), // vec3 out
+  node('math', 'value/math'),    // number ins (a/b)
 ];
 
 const conn = (source: string, sourceHandle: string, target: string, targetHandle: string) => ({
@@ -28,7 +30,7 @@ describe('portKind — handle prefix stripping', () => {
   });
 
   it('reads an INPUT kind correctly', () => {
-    expect(portKind(nodes[2], 'in-cond', 'in')).toBe('bool');
+    expect(portKind(nodes[2], 'in-cond', 'in')).toBe('any'); // Branch value accepts any kind
   });
 
   it('returns null for an unknown port', () => {
@@ -39,6 +41,15 @@ describe('portKind — handle prefix stripping', () => {
 describe('canConnect', () => {
   it('connects a bool output to a bool input (Key Down → Branch condition)', () => {
     expect(canConnect(conn('key', 'out-out', 'branch', 'in-cond'), nodes)).toBe(true);
+  });
+
+  it("Branch's 'any' value input accepts any data kind (e.g. a vec3 position)", () => {
+    expect(canConnect(conn('pos', 'out-out', 'branch', 'in-cond'), nodes)).toBe(true);
+    expect(canConnect(conn('pos', 'out-out', 'branch', 'in-compare'), nodes)).toBe(true);
+  });
+
+  it('still rejects mismatched strict ports (vec3 → a number input)', () => {
+    expect(canConnect(conn('pos', 'out-out', 'math', 'in-a'), nodes)).toBe(false);
   });
 
   it('connects exec → exec (On Key Down → Log)', () => {

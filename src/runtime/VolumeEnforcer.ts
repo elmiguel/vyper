@@ -3,13 +3,16 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { SceneManager } from '@/babylon/SceneManager';
 import { type Entity, type VolumeConfig, isMeshCollidable } from '@/types';
+import { gameConsole } from '@/store/consoleStore';
 import {
   shapeForKind,
   isInsideLocal,
+  segmentInsideLocal,
   clampInsideLocal,
   pushOutsideLocal,
   resolveConstraint,
   type VolumeShape,
+  type P3,
 } from './volumeGeometry';
 
 // Babylon scene fog modes (avoids importing the Scene class as a value).
@@ -26,6 +29,9 @@ interface VolEntry {
   locks: Map<string, 'in' | 'out' | null>;
   /** Objects inside as of last frame (for enter/exit latching). */
   prevInside: Set<string>;
+  /** Each affected object's volume-local position last frame, for tunnel-proof (swept) dead-zone
+   *  detection. Cleared for an object the frame it triggers so respawn-exit doesn't re-fire. */
+  prevLocal: Map<string, P3>;
   audio?: HTMLAudioElement;
 }
 
@@ -45,6 +51,7 @@ export class VolumeEnforcer {
   private tagById = new Map<string, string | undefined>();
   private spawns = new Map<string, Vector3>();
   private fogActive = false;
+  private dbgFrame = 0; // TEMP: throttles dead-zone diagnostics
 
   constructor(private readonly sm: SceneManager) {}
 
@@ -71,6 +78,7 @@ export class VolumeEnforcer {
           filter: e.trigger!.filter,
           locks: new Map(),
           prevInside: new Set(),
+          prevLocal: new Map(),
         };
         if (cfg.preset === 'sound' && cfg.soundUrl) {
           const a = new Audio(cfg.soundUrl);
@@ -81,6 +89,17 @@ export class VolumeEnforcer {
         }
         return entry;
       });
+
+    // TEMP DIAGNOSTICS (dead-zone debugging) — remove once resolved.
+    const dz = this.vols.filter((v) => v.cfg.preset === 'deadZone');
+    gameConsole.warn(
+      'DeadZone',
+      `built ${this.vols.length} volume(s) (${dz.length} dead zone), affected: ` +
+        `${this.candidates.map((id) => this.nameById.get(id) ?? id).join(', ') || '(none)'}`,
+    );
+    for (const v of dz) {
+      gameConsole.warn('DeadZone', `"${this.nameById.get(v.id)}" respawn=${v.cfg.respawn} filter=[${v.filter.join(', ')}] shape=${v.shape}`);
+    }
   }
 
   /** Does this volume act on the given object id (filter by name/tag; empty = any)? */
@@ -93,6 +112,7 @@ export class VolumeEnforcer {
   }
 
   tick(dt: number): void {
+    this.dbgFrame++; // TEMP: dead-zone diagnostics throttle
     const cam = this.sm.gameCamera;
     let visual: VolumeConfig | null = null;
 
@@ -104,6 +124,10 @@ export class VolumeEnforcer {
       for (const cid of this.candidates) {
         if (!this.affects(vol, cid)) continue;
         const cm = this.sm.getMesh(cid);
+        // TEMP DIAGNOSTICS — report any candidate skipped before the inside-test. Remove once resolved.
+        if (this.dbgFrame % 60 === 0 && vol.cfg.preset === 'deadZone' && (!cm || !cm.isEnabled())) {
+          gameConsole.warn('DeadZone', `SKIP "${this.nameById.get(cid) ?? cid}" mesh=${!!cm} enabled=${cm ? cm.isEnabled() : 'n/a'}`);
+        }
         if (!cm || !cm.isEnabled()) continue;
         const local = Vector3.TransformCoordinates(cm.getAbsolutePosition(), inv);
         const inside = isInsideLocal(vol.shape, { x: local.x, y: local.y, z: local.z });
@@ -128,8 +152,29 @@ export class VolumeEnforcer {
           }
         }
 
-        if (inside && vol.cfg.preset === 'deadZone') this.deadZone(vol, cid);
-        else if (inside && vol.cfg.preset === 'water') this.water(vol, cid, dt);
+        // Dead zone uses swept detection so a fast faller that skips over a thin volume between
+        // frames still triggers; water/fog/boundary stay point-based (continuous effects).
+        if (vol.cfg.preset === 'deadZone') {
+          const prev = vol.prevLocal.get(cid);
+          const hit = inside || (prev ? segmentInsideLocal(vol.shape, prev, { x: local.x, y: local.y, z: local.z }) : false);
+          // TEMP DIAGNOSTICS — every ~60 frames, report each candidate's position in the dead
+          // zone's local space (inside = |x|,|y|,|z| ≤ 0.5 for a box). Remove once resolved.
+          if (this.dbgFrame % 60 === 0) {
+            gameConsole.warn(
+              'DeadZone',
+              `"${this.nameById.get(cid) ?? cid}" local=(${local.x.toFixed(2)}, ${local.y.toFixed(2)}, ${local.z.toFixed(2)}) inside=${inside}`,
+            );
+          }
+          if (hit) {
+            gameConsole.warn('DeadZone', `HIT → ${this.nameById.get(cid) ?? cid} respawn=${vol.cfg.respawn}`);
+            this.deadZone(vol, cid);
+            vol.prevLocal.delete(cid); // after teleport/destroy, don't swept-test the exit path
+          } else {
+            vol.prevLocal.set(cid, { x: local.x, y: local.y, z: local.z });
+          }
+        } else if (inside && vol.cfg.preset === 'water') {
+          this.water(vol, cid, dt);
+        }
 
         if (inside) nextInside.add(cid);
       }

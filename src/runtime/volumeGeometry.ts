@@ -41,6 +41,25 @@ export function isInsideLocal(shape: VolumeShape, p: P3): boolean {
   return Math.abs(p.x) <= BOX_HALF && Math.abs(p.y) <= BOX_HALF && Math.abs(p.z) <= BOX_HALF;
 }
 
+/**
+ * Whether the segment a→b touches the volume (both points in volume-local space). Used for
+ * tunnel-proof dead-zone detection: a fast faller can move further in one frame than a thin volume
+ * is deep and skip over the per-frame point test, so we also sample along its path. Returns true if
+ * either endpoint is inside or any sampled point between them is. Sample count scales with the
+ * segment length (capped) so long jumps still get enough samples.
+ */
+export function segmentInsideLocal(shape: VolumeShape, a: P3, b: P3): boolean {
+  if (isInsideLocal(shape, a) || isInsideLocal(shape, b)) return true;
+  const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+  const len = Math.hypot(dx, dy, dz);
+  const steps = Math.min(64, Math.max(1, Math.ceil(len / 0.25)));
+  for (let i = 1; i < steps; i++) {
+    const t = i / steps;
+    if (isInsideLocal(shape, { x: a.x + dx * t, y: a.y + dy * t, z: a.z + dz * t })) return true;
+  }
+  return false;
+}
+
 /** Nearest point on/within the boundary (used to keep an object inside). */
 export function clampInsideLocal(shape: VolumeShape, p: P3): P3 {
   if (shape === 'sphere') {

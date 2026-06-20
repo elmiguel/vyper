@@ -47,6 +47,8 @@ export function makeEntityApi(entity: Entity, mesh: AbstractMesh | undefined, sc
   // Physics body for this entity (may be created lazily via usePhysics()).
   let body = sceneManager.getBody(entity.id);
   const tmp = new Vector3();
+  // The authored start transform — where respawn() returns the entity to.
+  const spawn = { ...entity.transform.position };
   // Frames the body has been vertically at rest (for the grounded-by-rest fallback).
   let restingFrames = 0;
 
@@ -70,6 +72,13 @@ export function makeEntityApi(entity: Entity, mesh: AbstractMesh | undefined, sc
       position.x = v.x;
       position.y = v.y;
       position.z = v.z;
+    },
+    /** Return the entity to its authored spawn point and clear any motion (e.g. fell off the map). */
+    respawn() {
+      position.x = spawn.x;
+      position.y = spawn.y;
+      position.z = spawn.z;
+      body?.setLinearVelocity(tmp.set(0, 0, 0));
     },
 
     // ----- Physics -----

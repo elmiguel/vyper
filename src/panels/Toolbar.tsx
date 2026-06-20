@@ -1,22 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Play, Pause, Square, Plus, Bug, Undo2, Redo2, Keyboard, ChevronDown, Compass, BookOpen,
-  Home, Save, Layers, Loader2, X, History, Pencil, Target, LayoutDashboard, Box, Columns3,
-  Image as ImageIcon, Check,
+  Play, Pause, Square, Plus, Undo2, Redo2, Keyboard, ChevronDown, Compass, BookOpen,
+  Home, Save, Layers, Loader2, X, History, Pencil, Columns3,
+  Image as ImageIcon, Check, PanelsTopLeft,
 } from 'lucide-react';
 import { useEditorStore } from '@/store/editorStore';
 import { useProjectStore } from '@/store/projectStore';
 import { KEYMAPS, describeBinding, type EditorAction, type KeymapId } from '@/input/keymaps';
 import { BUILTIN_PRESETS } from '@/layout/workspacePresets';
-import { activatePreset, resetWorkspace, saveCurrentLayout } from '@/layout/dockController';
+import { PANELS, PANEL_KEYS } from '@/layout/panels';
+import { activatePreset, resetWorkspace, saveCurrentLayout, togglePanel, openPanelIds } from '@/layout/dockController';
 
 export function Toolbar() {
   const {
     playState, play, pause, stop, toggleInspector3D, showInspector3D,
     keymap, setKeymap, undo, redo, past, future, setShowShortcuts, setRunTour, setShowDesign, setShowHud,
     setShowAssetBrowser, workspace, deleteCustomLayout,
+    showDesign, showHud, showAssetBrowser,
   } = useEditorStore();
-  const [menu, setMenu] = useState<null | 'keymap' | 'scene' | 'layout'>(null);
+  const [menu, setMenu] = useState<null | 'keymap' | 'scene' | 'layout' | 'panels'>(null);
+  // Dock panel open/closed state lives in dockview (not the store), so re-read it whenever the
+  // Panels menu opens or a toggle bumps this tick.
+  const [panelsTick, setPanelsTick] = useState(0);
+  const openPanels = useMemo(() => (menu === 'panels' ? openPanelIds() : []), [menu, panelsTick]);
   const activeLayout =
     BUILTIN_PRESETS[workspace.activePresetId]?.label ??
     workspace.custom.find((c) => c.id === workspace.activePresetId)?.label ??
@@ -149,15 +155,6 @@ export function Toolbar() {
         >
           {coverSaved ? <Check size={15} /> : <ImageIcon size={15} />}
         </button>
-        <button className="tb-btn" data-tour="design" onClick={() => setShowDesign(true)} title="Game design: goals, objectives, rules">
-          <Target size={14} /> Design
-        </button>
-        <button className="tb-btn" data-tour="hud" onClick={() => setShowHud(true)} title="HUD editor: on-screen overlay (2D & 3D)">
-          <LayoutDashboard size={14} /> HUD
-        </button>
-        <button className="tb-btn" data-tour="assets" onClick={() => setShowAssetBrowser(true)} title="Asset library: 3D models & textures">
-          <Box size={14} /> Assets
-        </button>
       </div>
 
       <span className="tb-divider" />
@@ -244,9 +241,47 @@ export function Toolbar() {
         )}
       </div>
 
-      <button className={`tb-btn ${showInspector3D ? 'active' : ''}`} onClick={toggleInspector3D} title="Babylon Inspector" data-tour="inspector3d">
-        <Bug size={15} /> Inspector
-      </button>
+      {/* Panels: one menu to show/hide dockable panels + editors, keeping the nav clean. Each row
+          is a toggle switch reflecting whether the panel/overlay is currently open. */}
+      <div className="tb-menu-wrap" data-tour="panels">
+        <button className="tb-btn" onClick={() => setMenu(menu === 'panels' ? null : 'panels')} title="Show / hide panels">
+          <PanelsTopLeft size={15} /> Panels <ChevronDown size={12} />
+        </button>
+        {menu === 'panels' && (
+          <div className="tb-menu panels-menu" onMouseLeave={() => setMenu(null)}>
+            <div className="panels-head">Panels</div>
+            {PANEL_KEYS.map((key) => (
+              <label className="panel-toggle" key={key}>
+                <span>{PANELS[key].title}</span>
+                <input
+                  type="checkbox"
+                  className="tb-toggle"
+                  checked={openPanels.includes(key)}
+                  onChange={() => { togglePanel(key); setPanelsTick((n) => n + 1); }}
+                />
+              </label>
+            ))}
+            <div className="panels-sep" />
+            <div className="panels-head">Editors</div>
+            <label className="panel-toggle">
+              <span>Design</span>
+              <input type="checkbox" className="tb-toggle" checked={showDesign} onChange={() => setShowDesign(!showDesign)} />
+            </label>
+            <label className="panel-toggle">
+              <span>HUD</span>
+              <input type="checkbox" className="tb-toggle" checked={showHud} onChange={() => setShowHud(!showHud)} />
+            </label>
+            <label className="panel-toggle">
+              <span>Assets</span>
+              <input type="checkbox" className="tb-toggle" checked={showAssetBrowser} onChange={() => setShowAssetBrowser(!showAssetBrowser)} />
+            </label>
+            <label className="panel-toggle">
+              <span>Babylon Inspector</span>
+              <input type="checkbox" className="tb-toggle" checked={showInspector3D} onChange={toggleInspector3D} />
+            </label>
+          </div>
+        )}
+      </div>
 
       <button className="tb-icon" onClick={() => setShowShortcuts(true)} title="Keyboard shortcuts (?)">
         <span className="tb-help">?</span>

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { DockviewApi } from 'dockview';
-import { setDockApi, reactToPlayState } from './dockController';
+import { setDockApi, reactToPlayState, togglePanel, openPanelIds } from './dockController';
 
 /**
  * Minimal dock model: panels belong to groups, can be re-grouped via moveTo, and
@@ -89,5 +89,57 @@ describe('reactToPlayState (Scene/Game dock tabs)', () => {
     setDockApi(dock.api);
     reactToPlayState('editing', 'editing');
     expect(dock.active).toEqual({});
+  });
+});
+
+/** A tiny dock that just tracks which panel ids exist, for the Panels-menu toggle. */
+function mockPanelDock(initial: string[]) {
+  const ids = new Set(initial);
+  let lastAdded: { id: string; component: string } | null = null;
+  const api = {
+    get panels() {
+      return [...ids].map((id) => ({ id }));
+    },
+    getPanel: (id: string) =>
+      ids.has(id) ? { id, api: { setActive() {} } } : undefined,
+    addPanel: (opts: { id: string; component: string }) => {
+      ids.add(opts.id);
+      lastAdded = opts;
+    },
+    removePanel: (p: { id: string }) => {
+      ids.delete(p.id);
+    },
+  } as unknown as DockviewApi;
+  return { api, ids, getLastAdded: () => lastAdded };
+}
+
+describe('togglePanel / openPanelIds (Panels menu)', () => {
+  beforeEach(() => setDockApi(null));
+
+  it('reports the currently mounted panel ids', () => {
+    const dock = mockPanelDock(['scene', 'inspector']);
+    setDockApi(dock.api);
+    expect(openPanelIds().sort()).toEqual(['inspector', 'scene']);
+  });
+
+  it('closes an open panel', () => {
+    const dock = mockPanelDock(['scene', 'inspector', 'modeling']);
+    setDockApi(dock.api);
+    togglePanel('modeling');
+    expect(dock.ids.has('modeling')).toBe(false);
+  });
+
+  it('re-adds a closed panel by its registry key', () => {
+    const dock = mockPanelDock(['scene', 'inspector']);
+    setDockApi(dock.api);
+    togglePanel('scripts');
+    expect(dock.ids.has('scripts')).toBe(true);
+    expect(dock.getLastAdded()).toMatchObject({ id: 'scripts', component: 'scripts' });
+  });
+
+  it('is a no-op with no dock api', () => {
+    setDockApi(null);
+    expect(() => togglePanel('inspector')).not.toThrow();
+    expect(openPanelIds()).toEqual([]);
   });
 });

@@ -2,6 +2,7 @@ import type { DockviewApi } from 'dockview';
 import type { PlayState } from '@/types';
 import { useEditorStore } from '@/store/editorStore';
 import { BUILTIN_PRESETS, DEFAULT_PRESET_ID, applyPreset } from './workspacePresets';
+import { PANELS, type PanelKey } from './panels';
 
 const SCENE = 'scene';
 const GAME = 'preview';
@@ -112,4 +113,32 @@ export function resetWorkspace() {
 export function saveCurrentLayout(label: string) {
   if (!api) return;
   useEditorStore.getState().saveCustomLayout(label, api.toJSON());
+}
+
+/** Ids of the panels currently mounted in the dock (open). Drives the toolbar's Panels menu. */
+export function openPanelIds(): string[] {
+  return api?.panels.map((p) => p.id) ?? [];
+}
+
+/**
+ * Show or hide a dockable panel. If it's open, close it; if it's closed, re-add it as a tab in a
+ * sensible neighbour group (the Inspector's, else the first panel's) and focus it. Users can then
+ * drag it wherever they like — the dock is freely movable. Lets the toolbar collapse the per-panel
+ * buttons into one Panels menu.
+ */
+export function togglePanel(key: PanelKey) {
+  if (!api) return;
+  const existing = api.getPanel(key);
+  if (existing) {
+    api.removePanel(existing);
+    return;
+  }
+  const refId = api.getPanel('inspector') ? 'inspector' : api.panels[0]?.id;
+  api.addPanel({
+    id: key,
+    component: key,
+    title: PANELS[key].title,
+    ...(refId ? { position: { referencePanel: refId, direction: 'within' as const } } : {}),
+  });
+  api.getPanel(key)?.api.setActive();
 }

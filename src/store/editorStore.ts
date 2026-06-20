@@ -35,6 +35,7 @@ export const useEditorStore = hmrSingleton('editor', () => create<EditorState>((
   scripts: {},
   selectedId: null,
   activeScriptId: null,
+  lastScriptByEntity: {},
   activeEffect: null,
   playState: 'editing',
   sceneRevision: 0,

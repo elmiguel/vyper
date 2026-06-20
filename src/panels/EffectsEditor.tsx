@@ -2,6 +2,7 @@ import { useEditorStore } from '@/store/editorStore';
 import { EFFECT_PRESETS, presetsForMode } from '@/effects/presets';
 import { EffectPreview } from '@/effects/EffectPreview';
 import type { BlendMode, EffectConfig, EmitterShape, ParticleTextureKind, RGBA, Vec3 } from '@/types';
+import { NumberInput } from '@/ui/NumberInput';
 import { Sparkles, X } from 'lucide-react';
 
 // ---- small RGBA <-> hex helpers ----
@@ -16,14 +17,7 @@ function Num({ label, value, onChange, step = 0.1, min }: { label: string; value
   return (
     <div className="field">
       <span className="field-label">{label}</span>
-      <input
-        type="number"
-        step={step}
-        min={min}
-        value={Number.isFinite(value) ? value : 0}
-        onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
-        onWheel={(e) => e.currentTarget.blur()}
-      />
+      <NumberInput step={step} min={min} value={Number.isFinite(value) ? value : 0} onChange={onChange} />
     </div>
   );
 }
@@ -58,14 +52,7 @@ function VecField({ label, value, onChange }: { label: string; value: Vec3; onCh
     <div className="field">
       <span className="field-label">{label}</span>
       {(['x', 'y', 'z'] as const).map((a) => (
-        <input
-          key={a}
-          type="number"
-          step={0.5}
-          value={value[a]}
-          onChange={(e) => onChange({ ...value, [a]: parseFloat(e.target.value) || 0 })}
-          onWheel={(e) => e.currentTarget.blur()}
-        />
+        <NumberInput key={a} step={0.5} value={value[a]} onChange={(n) => onChange({ ...value, [a]: n })} />
       ))}
     </div>
   );

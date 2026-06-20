@@ -5,6 +5,7 @@ import { NODE_SPECS, type EngineNodeData, type PortSpec } from './nodeTypes';
 import { flowTracker } from '@/runtime/flowTracker';
 import { useFlowTick } from './useNodeFlow';
 import { KeyCaptureField } from './KeyCaptureField';
+import { BranchControls } from './BranchControls';
 import { NumberInput } from '@/ui/NumberInput';
 import { useEditorStore } from '@/store/editorStore';
 
@@ -142,27 +143,35 @@ function EngineNodeImpl({ id, data, selected }: NodeProps) {
           </div>
         ))}
 
-        {/* Data inputs (with inline editors when unconnected) */}
-        {spec.inputs.map((i) => {
-          const connected = connectedTargets.has(`in-${i.id}`);
-          return (
-            <div className="port-row data-in" key={`in-${i.id}`}>
-              <Handle type="target" position={Position.Left} id={`in-${i.id}`} className={`h-data k-${i.kind}`} />
-              <span className="port-label">{i.label}</span>
-              {!connected && i.default !== undefined && (
-                <FieldEditor port={i} value={d.fields[i.id]} onChange={(v) => setField(i.id, v)} />
-              )}
-            </div>
-          );
-        })}
+        {/* Branch (if) renders its own type-aware controls (value/compare handles + check/op/rhs);
+            every other node uses the generic input + field rendering below. */}
+        {d.kind === 'action/branch' ? (
+          <BranchControls id={id} fields={d.fields} setField={setField} />
+        ) : (
+          <>
+            {/* Data inputs (with inline editors when unconnected) */}
+            {spec.inputs.map((i) => {
+              const connected = connectedTargets.has(`in-${i.id}`);
+              return (
+                <div className="port-row data-in" key={`in-${i.id}`}>
+                  <Handle type="target" position={Position.Left} id={`in-${i.id}`} className={`h-data k-${i.kind}`} />
+                  <span className="port-label">{i.label}</span>
+                  {!connected && i.default !== undefined && (
+                    <FieldEditor port={i} value={d.fields[i.id]} onChange={(v) => setField(i.id, v)} />
+                  )}
+                </div>
+              );
+            })}
 
-        {/* Inline-only fields (math op, prop key, etc.) */}
-        {(spec.fields ?? []).map((field) => (
-          <div className="port-row field-row" key={`f-${field.id}`}>
-            {field.label && <span className="port-label">{field.label}</span>}
-            <FieldEditor port={field} value={d.fields[field.id]} onChange={(v) => setField(field.id, v)} />
-          </div>
-        ))}
+            {/* Inline-only fields (math op, prop key, etc.) */}
+            {(spec.fields ?? []).map((field) => (
+              <div className="port-row field-row" key={`f-${field.id}`}>
+                {field.label && <span className="port-label">{field.label}</span>}
+                <FieldEditor port={field} value={d.fields[field.id]} onChange={(v) => setField(field.id, v)} />
+              </div>
+            ))}
+          </>
+        )}
       </div>
 
       {flow === 'error' && flowTracker.errorMessage && (

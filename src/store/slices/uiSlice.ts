@@ -1,5 +1,6 @@
 import type { EditorState, StoreSet } from '../editorTypes';
 import { defaultGameCamera } from '../editorDefaults';
+import { pickEntityScript } from '../scriptSelection';
 import { defaultBrush } from '@/types';
 
 type UiSlice = Pick<
@@ -32,8 +33,24 @@ type UiSlice = Pick<
 /** Selection, editor mode/shortcuts, view objects (camera/grid), and play control. */
 export function createUiSlice(set: StoreSet): UiSlice {
   return {
-    select: (id) => set({ selectedId: id }),
-    setActiveScript: (id) => set({ activeScriptId: id }),
+    // Selecting an object auto-focuses its behaviour script (last-used, else first) so the user
+    // lands on a script without navigating Inspector → Scripts → click. Objects with no scripts
+    // leave the current script untouched.
+    select: (id) =>
+      set((s) => {
+        const ent = id ? s.entities.find((e) => e.id === id) : undefined;
+        const next = pickEntityScript(ent?.scriptIds, new Set(Object.keys(s.scripts)), ent ? s.lastScriptByEntity?.[ent.id] : undefined);
+        return next ? { selectedId: id, activeScriptId: next } : { selectedId: id };
+      }),
+    // Remember the chosen script as the owning entity's last-used, so re-selecting it reopens this one.
+    setActiveScript: (id) =>
+      set((s) => {
+        if (!id) return { activeScriptId: id };
+        const owner = s.entities.find((e) => e.scriptIds.includes(id));
+        return owner
+          ? { activeScriptId: id, lastScriptByEntity: { ...s.lastScriptByEntity, [owner.id]: id } }
+          : { activeScriptId: id };
+      }),
     setActiveEffect: (sel) => set({ activeEffect: sel }),
 
     setMode: (mode) => set({ mode }),

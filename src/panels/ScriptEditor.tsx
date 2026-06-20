@@ -13,6 +13,8 @@ declare const entity: {
   translate(x: number, y?: number, z?: number): void;
   rotate(x: number, y?: number, z?: number): void;
   setPosition(v: { x: number; y: number; z: number }): void;
+  /** Return to the authored start position and clear velocity (e.g. respawn after falling). */
+  respawn(): void;
 };
 declare const input: {
   /** True while the key is held. Accepts a single key ("w", "arrowup") or a

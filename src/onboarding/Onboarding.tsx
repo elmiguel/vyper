@@ -91,26 +91,15 @@ const STEPS: Step[] = [
     placement: 'left',
   },
   {
-    target: '[data-tour="design"]',
-    title: 'Game design & goals',
+    target: '[data-tour="panels"]',
+    title: 'Panels & editors',
     content:
-      'Define what makes your scene a game: a concept, win/lose conditions, rules, and trackable objectives. Objectives show up as nodes so any object can complete them or react to them — and Vyper announces the win when every primary goal is done.',
-  },
-  {
-    target: '[data-tour="hud"]',
-    title: 'HUD editor',
-    content:
-      'Design the on-screen overlay — health bars, score, timers, a crosshair, objectives — on a 16:9 stage that renders live over the Game preview. Bind a widget to an object’s property to show live values while playing. Works in both 2D and 3D.',
+      'One menu of toggles to show or hide everything: the dockable panels (Hierarchy, Inspector, Modeling, Scripts, Debugger, Scene, Game) plus the Design, HUD, Asset, and Babylon-inspector editors. Panels are movable and dockable — turn one on here, then drag it wherever you like.',
   },
   {
     target: '[data-tour="keymap"]',
     title: 'Keyboard layouts',
     content: 'Switch shortcut layouts — Maya, Blender, or Unity. The whole app re-maps instantly.',
-  },
-  {
-    target: '[data-tour="inspector3d"]',
-    title: 'Babylon Inspector',
-    content: 'Open Babylon.js’s built-in inspector for deep, low-level scene debugging (materials, meshes, textures…).',
   },
   {
     target: '[data-tour="guide"]',

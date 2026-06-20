@@ -33,5 +33,7 @@ export function canConnect(conn: Connection | Edge, nodes: Node[]): boolean {
   if (sExec || tExec) return sExec && tExec;
   const srcKind = portKind(nodes.find((n) => n.id === conn.source), s, 'out');
   const tgtKind = portKind(nodes.find((n) => n.id === conn.target), t, 'in');
-  return !!srcKind && srcKind === tgtKind;
+  // An 'any' input (e.g. Branch's value/compare) accepts any data kind so you can test whatever
+  // a node produces — a position, a number, a flag, an object. Other ports stay strictly typed.
+  return !!srcKind && (tgtKind === 'any' || srcKind === tgtKind);
 }

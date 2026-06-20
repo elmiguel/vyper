@@ -92,6 +92,18 @@ export const coreSpecs: Record<string, NodeSpec> = {
     inputs: [{ id: 'to', label: 'to', kind: 'vec3', default: { x: 0, y: 1, z: 0 } }],
     outputs: [],
   },
+  'action/respawn': {
+    kind: 'action/respawn',
+    label: 'Respawn',
+    category: 'action',
+    color: C.action,
+    execIn: true,
+    execOuts: ['out'],
+    // Resets this entity to its authored start position and clears velocity. Pair with a Branch
+    // (e.g. position y <= 0) to respawn a player that falls off the map.
+    inputs: [],
+    outputs: [],
+  },
   'action/setProp': {
     kind: 'action/setProp',
     label: 'Set Property',
@@ -115,8 +127,20 @@ export const coreSpecs: Record<string, NodeSpec> = {
     color: C.action,
     execIn: true,
     execOuts: ['then', 'else'],
-    inputs: [{ id: 'cond', label: 'condition', kind: 'bool', default: true }],
+    // `cond` accepts ANY value (a flag, number, position, object…); the node then offers what to
+    // check + an operator + a compare value (literal, or the `compare` port for object/node
+    // comparison). Rendered by the custom BranchControls. Defaulting op to "is true" keeps a bare
+    // bool into `cond` behaving exactly like the old boolean Branch.
+    inputs: [
+      { id: 'cond', label: 'value', kind: 'any', default: true },
+      { id: 'compare', label: 'compare', kind: 'any' },
+    ],
     outputs: [],
+    fields: [
+      { id: 'path', label: 'check', kind: 'string', default: 'value' },
+      { id: 'op', label: 'op', kind: 'string', default: 'is true' },
+      { id: 'rhs', label: '', kind: 'number', default: 0 },
+    ],
   },
   'value/number': {
     kind: 'value/number',

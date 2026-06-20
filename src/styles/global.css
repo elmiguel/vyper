@@ -176,6 +176,18 @@ input { font-family: inherit; color: var(--text); }
 .tb-menu .tb-menu-item.active { color: var(--cyan); }
 .tb-menu .tb-menu-item:disabled { opacity: 0.4; cursor: default; }
 .tb-menu .tb-key { margin-left: auto; font-size: 11px; opacity: 0.7; font-variant-numeric: tabular-nums; }
+/* Panels menu — right-anchored so it doesn't run off the edge; rows are toggle switches. */
+.panels-menu { left: auto; right: 0; min-width: 210px; }
+.panels-head {
+  font-family: 'Orbitron', sans-serif; font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+  font-weight: 800; color: var(--text-dim); padding: 6px 8px 4px;
+}
+.panel-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 5px 8px; border-radius: 5px; font-size: 13px; color: var(--text); cursor: pointer;
+}
+.panel-toggle:hover { background: rgba(34, 211, 238, 0.10); }
+.panels-sep { height: 1px; background: var(--border); margin: 5px 4px; }
 .tb-transport { display: flex; align-items: center; gap: 5px; }
 .state-pill {
   margin-left: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
@@ -258,6 +270,13 @@ input { font-family: inherit; color: var(--text); }
   outline: none; border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(34,211,238,.4), var(--glow-cyan);
 }
 .inspector input:disabled { opacity: 0.55; }
+/* Drag-to-scrub numeric fields (see useDragScrub): the field doubles as a slider
+   handle, so advertise that with a horizontal-resize cursor until it's focused
+   for typing. While a scrub is in flight the cursor is pinned on <body> so it
+   doesn't flicker back when the pointer leaves the input. */
+.num-scrub:not(:focus):not(:disabled) { cursor: ew-resize; }
+.num-scrub.scrubbing { user-select: none; }
+body:has(.num-scrub.scrubbing) { cursor: ew-resize; user-select: none; }
 .field.check { font-size: 12px; gap: 7px; }
 .field input[type='color'] { width: 40px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: none; }
 .field input[type='range'] { flex: 1; accent-color: var(--cyan); }
@@ -266,7 +285,8 @@ input { font-family: inherit; color: var(--text); }
 .field.check input[type='checkbox'],
 .studio-check input[type='checkbox'],
 .ae-check input[type='checkbox'],
-.hud-check input[type='checkbox'] {
+.hud-check input[type='checkbox'],
+input.tb-toggle {
   appearance: none; -webkit-appearance: none; margin: 0;
   position: relative; flex-shrink: 0; width: 32px; height: 18px; border-radius: 999px;
   background: rgba(6, 6, 15, 0.6); border: 1px solid var(--border); cursor: pointer;
@@ -275,26 +295,30 @@ input { font-family: inherit; color: var(--text); }
 .field.check input[type='checkbox']::after,
 .studio-check input[type='checkbox']::after,
 .ae-check input[type='checkbox']::after,
-.hud-check input[type='checkbox']::after {
+.hud-check input[type='checkbox']::after,
+input.tb-toggle::after {
   content: ''; position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%;
   background: var(--text-dim); transition: transform 0.15s, background 0.15s;
 }
 .field.check input[type='checkbox']:checked,
 .studio-check input[type='checkbox']:checked,
 .ae-check input[type='checkbox']:checked,
-.hud-check input[type='checkbox']:checked {
+.hud-check input[type='checkbox']:checked,
+input.tb-toggle:checked {
   background: color-mix(in srgb, var(--cyan) 30%, transparent); border-color: var(--cyan);
 }
 .field.check input[type='checkbox']:checked::after,
 .studio-check input[type='checkbox']:checked::after,
 .ae-check input[type='checkbox']:checked::after,
-.hud-check input[type='checkbox']:checked::after {
+.hud-check input[type='checkbox']:checked::after,
+input.tb-toggle:checked::after {
   transform: translateX(14px); background: var(--cyan);
 }
 .field.check input[type='checkbox']:focus-visible,
 .studio-check input[type='checkbox']:focus-visible,
 .ae-check input[type='checkbox']:focus-visible,
-.hud-check input[type='checkbox']:focus-visible { outline: none; box-shadow: var(--glow-cyan); }
+.hud-check input[type='checkbox']:focus-visible,
+input.tb-toggle:focus-visible { outline: none; box-shadow: var(--glow-cyan); }
 .field.check input[type='checkbox']:disabled,
 .studio-check input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .add-prop { gap: 5px; }
@@ -406,7 +430,38 @@ input { font-family: inherit; color: var(--text); }
 .palette-item { cursor: grab; }
 .palette-item:hover { border-color: var(--cyan); color: #fff; transform: translateX(2px); box-shadow: var(--glow-cyan); }
 .palette-item:active { cursor: grabbing; }
-.node-canvas { flex: 1; min-width: 0; }
+/* Node-palette search — sticky to the top of the scrolling list, on-theme. */
+.palette-search {
+  position: sticky; top: -9px; z-index: 2; display: flex; align-items: center; gap: 6px;
+  margin: -9px -9px 10px; padding: 9px;
+  background: linear-gradient(180deg, rgba(16,14,38,.96), rgba(11,10,28,.9));
+  border-bottom: 1px solid var(--border); color: var(--text-dim);
+}
+.palette-search input {
+  flex: 1; min-width: 0; background: rgba(6,6,15,.6); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); padding: 5px 7px; font-size: 12px; transition: border-color .12s, box-shadow .12s;
+}
+.palette-search input::placeholder { color: var(--text-dim); }
+.palette-search input:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(34,211,238,.4), var(--glow-cyan); }
+.palette-search > svg { flex-shrink: 0; color: var(--text-dim); }
+.palette-search-clear {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 22px; height: 22px; border-radius: 5px; border: 1px solid var(--border);
+  background: rgba(6,6,15,.5); color: var(--text-dim); cursor: pointer; transition: all .12s;
+}
+.palette-search-clear:hover { border-color: var(--cyan); color: #fff; box-shadow: var(--glow-cyan); }
+.palette-empty { font-size: 11px; color: var(--text-dim); padding: 4px 2px; line-height: 1.4; }
+.node-canvas { flex: 1; min-width: 0; position: relative; }
+/* Rubber-band selection overlay drawn over the canvas while left-dragging empty space. */
+.nf-marquee {
+  position: absolute; z-index: 5; pointer-events: none; border-radius: 2px;
+  border: 1px solid var(--cyan);
+  background: color-mix(in srgb, var(--cyan) 14%, transparent);
+}
+.nf-marquee.subtract {
+  border-color: var(--magenta);
+  background: color-mix(in srgb, var(--magenta) 14%, transparent);
+}
 .react-flow { background: radial-gradient(1200px 800px at 50% 120%, rgba(34,211,238,.06), transparent 60%), #06060f; }
 
 .engine-node {
@@ -499,6 +554,11 @@ input { font-family: inherit; color: var(--text); }
 .h-data.k-bool { background: var(--warn) !important; color: rgba(255,204,68,.7); }
 .h-data.k-string { background: var(--purple) !important; color: rgba(177,74,237,.7); }
 .h-data.k-entity { background: var(--magenta) !important; color: rgba(255,46,151,.7); }
+/* 'any' input (Branch value/compare) — neutral so it reads as "accepts anything". */
+.h-data.k-any { background: var(--text-dim) !important; color: rgba(160,170,190,.7); }
+.nf-hint { font-size: 10px; color: var(--text-dim); font-style: italic; }
+/* Dropdowns inside node fields (Branch check/op, Math op) match the dark .nf-text inputs. */
+.engine-node select.nf-text { width: auto; min-width: 76px; cursor: pointer; appearance: none; -webkit-appearance: none; }
 .react-flow__handle { top: 50%; transition: box-shadow 0.15s, transform 0.15s; }
 .react-flow__handle:hover { transform: scale(1.25); }
 
@@ -1145,11 +1205,11 @@ input { font-family: inherit; color: var(--text); }
 .fx-editor select:focus, .inspector select:focus, .modeling-tools select:focus { outline: none; border-color: var(--cyan); box-shadow: var(--glow-cyan); }
 /* The native option dropdown list (rendered by the OS) — keep it on-theme where supported. */
 .fx-editor select option, .inspector select option, .modeling-tools select option { background: var(--bg-2); color: var(--text); }
-.fx-editor input[type='number'] {
+.fx-editor input[type='number'], .fx-editor input[type='text'] {
   background: rgba(6,6,15,.6); border: 1px solid var(--border); border-radius: 5px;
   padding: 4px 6px; font-size: 12px; color: var(--text); width: 100%; min-width: 0;
 }
-.fx-editor input[type='number']:focus { outline: none; border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+.fx-editor input[type='number']:focus, .fx-editor input[type='text']:focus { outline: none; border-color: var(--cyan); box-shadow: var(--glow-cyan); }
 .fx-editor input[type='color'] { width: 34px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: none; }
 .fx-editor .field { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
 .fx-editor .field-label { font-size: 12px; color: var(--text-dim); min-width: 64px; }

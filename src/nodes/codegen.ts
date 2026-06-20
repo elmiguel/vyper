@@ -1,6 +1,9 @@
 import type { Edge, Node } from '@xyflow/react';
 import type { ScriptGraph } from '@/types';
 import { type EngineNodeData } from './nodeTypes';
+import type { DataKind } from './nodeSpec.types';
+import { portKind } from './connectionRules';
+import { branchCondition, effectiveKind, opNeedsRhs, type BranchPath } from './branchLogic';
 import { ASSET_TEMPLATES } from './assetTemplates';
 
 /**
@@ -107,6 +110,13 @@ class Compiler {
     return edge ? this.outputExpr(edge.source) : null;
   }
 
+  /** Data kind feeding an input (from the connected source's output port), or null if unconnected. */
+  private sourceKind(nodeId: string, inputId: string): DataKind | null {
+    const edge = this.dataIn.get(`${nodeId}|${inputId}`);
+    if (!edge?.sourceHandle) return null;
+    return portKind(this.byId.get(edge.source), edge.sourceHandle, 'out') as DataKind | null;
+  }
+
   /**
    * Statements for the execution chain(s) reached from a given exec output.
    * A single output may fan out to several targets; they run in top-to-bottom
@@ -161,6 +171,9 @@ class Compiler {
       }
       case 'action/setPosition':
         out += `${indent}entity.setPosition(${this.inputExpr(nodeId, 'to')});\n`;
+        break;
+      case 'action/respawn':
+        out += `${indent}entity.respawn();\n`;
         break;
       case 'action/setProp': {
         const key = JSON.stringify(String(f.key ?? ''));
@@ -261,7 +274,17 @@ class Compiler {
       }
 
       case 'action/branch': {
-        const cond = this.inputExpr(nodeId, 'cond');
+        const lhs = this.inputExpr(nodeId, 'cond');
+        const kind = this.sourceKind(nodeId, 'cond') ?? 'any';
+        const path = String(f.path ?? 'value') as BranchPath;
+        const op = String(f.op ?? 'is true');
+        let rhs = '0';
+        if (opNeedsRhs(op)) {
+          const cmp = this.dataIn.get(`${nodeId}|compare`);
+          if (cmp) rhs = this.outputExpr(cmp.source);
+          else rhs = effectiveKind(kind, path) === 'string' ? JSON.stringify(String(f.rhs ?? '')) : num(f.rhs);
+        }
+        const cond = branchCondition({ lhsExpr: lhs, path, op, rhsExpr: rhs });
         out += `${indent}if (${cond}) {\n`;
         out += this.execChain(nodeId, 'then', indent + '  ', new Set(seen));
         out += `${indent}} else {\n`;

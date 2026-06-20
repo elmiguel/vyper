@@ -15,10 +15,11 @@ import {
   type Node,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { Search, X } from 'lucide-react';
 import { EngineNode } from './EngineNode';
 import { FlowEdge } from './FlowEdge';
 import { canConnect } from './connectionRules';
-import { ASSET_KINDS, NODE_PALETTE, NODE_SPECS, makeNode, type EngineNodeData } from './nodeTypes';
+import { ASSET_KINDS, NODE_PALETTE, NODE_SPECS, filterNodePalette, makeNode, type EngineNodeData } from './nodeTypes';
 import { ContextMenu, type MenuItem } from '@/ui/ContextMenu';
 import {
   cloneForClipboard,
@@ -32,6 +33,7 @@ import {
   type NodeClipboard,
 } from './nodeActions';
 import { useEditorStore } from '@/store/editorStore';
+import { useMarqueeSelection } from './useMarqueeSelection';
 
 const nodeTypes = { engineNode: EngineNode };
 const edgeTypes = { flow: FlowEdge };
@@ -157,6 +159,19 @@ function Flow({ scriptId }: { scriptId: string }) {
     [setNodes],
   );
 
+  // Rubber-band selection over empty canvas (replace / Shift-add / Ctrl·Cmd-subtract).
+  const { onPointerDown: onMarqueeDown, box: marquee } = useMarqueeSelection(setNodes);
+
+  // Modifier clicks on a node: Shift adds, Ctrl/Cmd removes (Cmd too, since macOS makes Ctrl+click a
+  // right-click). React Flow's multi-select keeps the other nodes; we just force this one's direction.
+  const onNodeClick = useCallback(
+    (e: React.MouseEvent, node: Node) => {
+      if (e.shiftKey) setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, selected: true } : n)));
+      else if (e.ctrlKey || e.metaKey) setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, selected: false } : n)));
+    },
+    [setNodes],
+  );
+
   const onNodeContextMenu = useCallback(
     (e: React.MouseEvent, node: Node) => {
       e.preventDefault();
@@ -220,7 +235,10 @@ function Flow({ scriptId }: { scriptId: string }) {
     [screenToFlowPosition, fitView, addNode, setNodes, setEdges],
   );
 
-  const palette = useMemo(() => NODE_PALETTE, []);
+  // Palette search: filter node items by label/kind, dropping categories with no matches but
+  // keeping the category headers for those that still have hits.
+  const [paletteQuery, setPaletteQuery] = useState('');
+  const palette = useMemo(() => filterNodePalette(NODE_PALETTE, paletteQuery), [paletteQuery]);
 
   // Render every edge through the live-flow edge type without writing `type`
   // back into the persisted graph.
@@ -233,6 +251,21 @@ function Flow({ scriptId }: { scriptId: string }) {
       onPointerLeave={() => nodeEditorBridge.setActive(false)}
     >
       <div className="node-palette">
+        <div className="palette-search">
+          <Search size={13} />
+          <input
+            type="text"
+            placeholder="Search nodes…"
+            value={paletteQuery}
+            onChange={(e) => setPaletteQuery(e.target.value)}
+          />
+          {paletteQuery && (
+            <button className="palette-search-clear" title="Clear" onClick={() => setPaletteQuery('')}>
+              <X size={13} />
+            </button>
+          )}
+        </div>
+        {palette.length === 0 && <div className="palette-empty">No nodes match “{paletteQuery}”.</div>}
         {palette.map((group) => (
           <div className="palette-group" key={group.category}>
             <div className={`palette-cat cat-${group.category}`}>{group.category}</div>
@@ -251,13 +284,14 @@ function Flow({ scriptId }: { scriptId: string }) {
           </div>
         ))}
       </div>
-      <div className="node-canvas" onDragOver={onDragOver} onDrop={onDrop}>
+      <div className="node-canvas" onDragOver={onDragOver} onDrop={onDrop} onPointerDown={onMarqueeDown}>
         <ReactFlow
           nodes={nodes}
           edges={displayEdges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
+          onNodeClick={onNodeClick}
           onNodeContextMenu={onNodeContextMenu}
           onPaneContextMenu={onPaneContextMenu}
           isValidConnection={isValidConnection}
@@ -266,11 +300,24 @@ function Flow({ scriptId }: { scriptId: string }) {
           fitView
           proOptions={{ hideAttribution: true }}
           defaultEdgeOptions={{ type: 'flow' }}
+          // Left-drag is our marquee (above); pan with middle/right-drag or Space+drag. Disable React
+          // Flow's own box-select so the two don't fight; allow Shift/Ctrl/Cmd additive node clicks.
+          panOnDrag={[1, 2]}
+          panActivationKeyCode="Space"
+          selectionOnDrag={false}
+          selectionKeyCode={null}
+          multiSelectionKeyCode={['Shift', 'Control', 'Meta']}
         >
           <Background variant={BackgroundVariant.Dots} gap={20} size={1.4} color="#1b2b5a" />
           <Controls />
           <MiniMap pannable zoomable nodeColor={(n) => NODE_SPECS[(n.data as EngineNodeData).kind]?.color ?? '#888'} />
         </ReactFlow>
+        {marquee && (
+          <div
+            className={`nf-marquee${marquee.mode === 'subtract' ? ' subtract' : ''}`}
+            style={{ left: marquee.x, top: marquee.y, width: marquee.w, height: marquee.h }}
+          />
+        )}
       </div>
       {menu && <ContextMenu x={menu.x} y={menu.y} items={menu.items} onClose={() => setMenu(null)} />}
     </div>

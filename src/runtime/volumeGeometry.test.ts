@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   shapeForKind,
   isInsideLocal,
+  segmentInsideLocal,
   clampInsideLocal,
   pushOutsideLocal,
   resolveConstraint,
@@ -113,5 +114,27 @@ describe('resolveConstraint', () => {
 
   it('none never constrains', () => {
     expect(resolveConstraint('none', true, false, null).constrain).toBeNull();
+  });
+});
+
+describe('segmentInsideLocal (swept / tunnel-proof)', () => {
+  const above = { x: 0, y: 5, z: 0 };
+  const below = { x: 0, y: -5, z: 0 };
+
+  it('is true when an endpoint is inside', () => {
+    expect(segmentInsideLocal('box', { x: 0, y: 0, z: 0 }, above)).toBe(true);
+  });
+
+  it('catches a segment that passes clean through the box (both endpoints outside)', () => {
+    expect(segmentInsideLocal('box', above, below)).toBe(true);
+  });
+
+  it('is false when the whole segment misses the box', () => {
+    expect(segmentInsideLocal('box', { x: 5, y: 5, z: 0 }, { x: 5, y: -5, z: 0 })).toBe(false);
+  });
+
+  it('works for a sphere volume too', () => {
+    expect(segmentInsideLocal('sphere', above, below)).toBe(true);
+    expect(segmentInsideLocal('sphere', { x: 2, y: 5, z: 0 }, { x: 2, y: -5, z: 0 })).toBe(false);
   });
 });

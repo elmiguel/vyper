@@ -164,7 +164,7 @@ export function SceneTools() {
         <>
           <div className="tb-menu-wrap">
             <button
-              className={`tb-icon ${meshEdit.active ? 'active' : ''}`}
+              className={`tb-icon tb-add ${meshEdit.active ? 'active' : ''}`}
               title={`Edit mode: ${activeMode.label} — click to change`}
               onClick={() => setMenu(menu === 'modes' ? null : 'modes')}
             >
