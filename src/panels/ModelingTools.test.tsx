@@ -22,10 +22,11 @@ beforeEach(() => {
 });
 
 describe('ModelingTools', () => {
-  it('offers primitive spawn buttons in 3D', () => {
+  it('offers the full primitive set in 3D (matches the studio)', () => {
     render(<ModelingTools />);
-    expect(screen.getByText('Box')).toBeInTheDocument();
-    expect(screen.getByText('Cylinder')).toBeInTheDocument();
+    for (const label of ['Cube', 'Plane', 'Grid', 'Cylinder', 'Sphere', 'Cone', 'Torus']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
   });
 
   it('notes that modeling needs 3D mode in 2D', () => {

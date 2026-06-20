@@ -32,7 +32,7 @@ import { wireTransformGizmos } from './modelerGizmoWiring';
 import { HoverHighlight } from './modelerHover';
 import { ModelerEditTools, type EditTool, type LoopCutHandlers, type KnifeHandlers, type DrawPolyHandlers } from './ModelerEditTools';
 import { ToolGizmo } from './ToolGizmo';
-import { SketchTopoSession, type SketchTopoHandlers } from './retopo/SketchTopoSession';
+import { SketchTopoSession, type SketchTopoHandlers } from '@/babylon/editmesh/retopo/SketchTopoSession';
 
 export type { EditTool, LoopCutHandlers, KnifeHandlers, DrawPolyHandlers } from './ModelerEditTools';
 

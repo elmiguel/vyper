@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useEditorStore } from '@/store/editorStore';
+import { getManager } from '@/babylon/engine';
 import { nodeEditorBridge } from '@/nodes/nodeActions';
 import { KEYMAPS, buildLookup, comboFromEvent, type EditorAction } from './keymaps';
 
@@ -36,6 +37,27 @@ export function useShortcuts() {
           case 'delete':
             ops.remove();
             return;
+        }
+      }
+      // In Edit Mode the clipboard/delete actions operate on the vertex/edge/face selection
+      // (component-level), not the whole entity.
+      if (s.meshEdit.active) {
+        const mec = getManager()?.meshEditController;
+        if (mec) {
+          switch (action) {
+            case 'copy':
+              mec.copyComponents();
+              return;
+            case 'paste':
+              mec.pasteComponents();
+              return;
+            case 'duplicate':
+              mec.duplicateComponents();
+              return;
+            case 'delete':
+              mec.applyOp('delete');
+              return;
+          }
         }
       }
       switch (action) {
@@ -115,6 +137,12 @@ export function useShortcuts() {
         }
         return;
       }
+      // While a modal mesh tool (loop cut / knife / draw poly / sketch retopo) is active:
+      // Enter finishes its in-progress path, Esc returns to plain select.
+      if (store.meshEdit.active && store.meshEdit.tool !== 'select') {
+        if (e.key === 'Enter') { e.preventDefault(); getManager()?.meshEditController?.finishTool(); return; }
+        if (e.key === 'Escape') { e.preventDefault(); store.setMeshTool('select'); return; }
+      }
       // Mesh component-mode keys (Maya-style 1/2/3/4): 1 = object, 2/3/4 = vertex/edge/face.
       // In Edit Mode they switch the component (1 leaves Edit Mode, back to object selection);
       // out of Edit Mode, 2/3/4 enter it on the selected mesh — the select-object-then-edit
@@ -135,6 +163,18 @@ export function useShortcuts() {
             store.setMeshComponent(comp);
             return;
           }
+        }
+      }
+      // Edit-Mode component keys — operate on the vertex/edge/face selection and win over the
+      // generic entity actions (e.g. Delete removes components here, not the whole entity).
+      if (store.meshEdit.active) {
+        const mec = getManager()?.meshEditController;
+        if (mec) {
+          if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); mec.applyOp('delete'); return; }
+          if ((e.ctrlKey || e.metaKey) && (e.key === 'e' || e.key === 'E')) { e.preventDefault(); mec.applyOp('extrude', 0.5); return; }
+          if (e.key === '>') { e.preventDefault(); mec.growSelection(); return; }
+          if (e.key === '<') { e.preventDefault(); mec.shrinkSelection(); return; }
+          if (e.key === 'l' || e.key === 'L') { e.preventDefault(); mec.selectLoop(); return; }
         }
       }
       if (!action) return;

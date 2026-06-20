@@ -18,12 +18,22 @@ const state = {
   setMeshComponent: vi.fn(),
   beginMeshEdit: vi.fn(),
   endMeshEdit: vi.fn(),
+  removeEntity: vi.fn(),
 };
+
+// Fake Edit-Mode controller exposed via getManager(); hoisted so the vi.mock factory can see it.
+const { mec } = vi.hoisted(() => ({
+  mec: {
+    applyOp: vi.fn(), growSelection: vi.fn(), shrinkSelection: vi.fn(), selectLoop: vi.fn(),
+    copyComponents: vi.fn(), pasteComponents: vi.fn(), duplicateComponents: vi.fn(),
+  },
+}));
 
 vi.mock('@/store/editorStore', () => ({
   useEditorStore: { getState: () => state },
 }));
 vi.mock('@/nodes/nodeActions', () => ({ nodeEditorBridge: { engaged: false, ops: null } }));
+vi.mock('@/babylon/engine', () => ({ getManager: () => ({ meshEditController: mec }) }));
 
 import { useShortcuts } from './useShortcuts';
 
@@ -111,5 +121,67 @@ describe('useShortcuts — mesh component-mode keys (1/2/3/4)', () => {
     press('2');
     expect(state.beginMeshEdit).not.toHaveBeenCalled();
     expect(state.setMeshComponent).not.toHaveBeenCalled();
+  });
+});
+
+describe('useShortcuts — Edit-Mode component keys', () => {
+  beforeEach(() => {
+    state.playState = 'editing';
+    state.mode = '3d';
+    state.selectedId = 'cube';
+    state.meshEdit = { active: true, component: 'face' };
+    vi.clearAllMocks();
+  });
+
+  it('Delete removes the selected components, not the whole entity', () => {
+    renderHook(() => useShortcuts());
+    press('Delete');
+    expect(mec.applyOp).toHaveBeenCalledWith('delete');
+    expect(state.removeEntity).not.toHaveBeenCalled();
+  });
+
+  it('Backspace also deletes components', () => {
+    renderHook(() => useShortcuts());
+    press('Backspace');
+    expect(mec.applyOp).toHaveBeenCalledWith('delete');
+  });
+
+  it('Ctrl+E extrudes the selection', () => {
+    renderHook(() => useShortcuts());
+    press('e', { ctrlKey: true });
+    expect(mec.applyOp).toHaveBeenCalledWith('extrude', 0.5);
+  });
+
+  it('> grows and < shrinks the selection', () => {
+    renderHook(() => useShortcuts());
+    press('>');
+    expect(mec.growSelection).toHaveBeenCalledTimes(1);
+    press('<');
+    expect(mec.shrinkSelection).toHaveBeenCalledTimes(1);
+  });
+
+  it('L runs a loop select', () => {
+    renderHook(() => useShortcuts());
+    press('l');
+    expect(mec.selectLoop).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fire Edit-Mode keys when not in Edit Mode', () => {
+    state.meshEdit = { active: false, component: 'face' };
+    renderHook(() => useShortcuts());
+    press('>');
+    press('l');
+    expect(mec.growSelection).not.toHaveBeenCalled();
+    expect(mec.selectLoop).not.toHaveBeenCalled();
+  });
+
+  it('copy/paste/duplicate route to components in Edit Mode (Blender: mod+c/v, shift+d)', () => {
+    renderHook(() => useShortcuts());
+    press('c', { ctrlKey: true });
+    expect(mec.copyComponents).toHaveBeenCalledTimes(1);
+    press('v', { ctrlKey: true });
+    expect(mec.pasteComponents).toHaveBeenCalledTimes(1);
+    press('d', { shiftKey: true });
+    expect(mec.duplicateComponents).toHaveBeenCalledTimes(1);
   });
 });

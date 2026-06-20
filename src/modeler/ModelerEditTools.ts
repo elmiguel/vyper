@@ -6,7 +6,7 @@ import type { LinesMesh } from '@babylonjs/core/Meshes/linesMesh';
 import type { CustomGeometry } from '@/types';
 import { nearestEdge, nearestEdgeWithT, nearestVertex, type Projector } from './modelerSceneGeom';
 import { slideRatio, lineAngle, nearestAngleIndex } from './loopCutDrag';
-import type { SketchTopoSession } from './retopo/SketchTopoSession';
+import type { SketchTopoSession } from '@/babylon/editmesh/retopo/SketchTopoSession';
 
 /** An interactive edit tool that takes over viewport pointer input, or 'none'. */
 export type EditTool = 'none' | 'loopcut' | 'knife' | 'drawpoly' | 'sketchtopo';

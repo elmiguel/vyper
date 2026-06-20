@@ -172,14 +172,21 @@ export class RenderPipeline {
       return;
     }
     if (!this.ssao) {
-      // Half-resolution AO with a cheap bilateral blur — full-res 16-sample AO with
-      // expensiveBlur was a large fill-rate cost for a barely-visible quality gain.
-      this.ssao = new SSAO2RenderingPipeline('hq-ssao', this.scene, { ssaoRatio: 0.5, blurRatio: 0.5 }, this.cameras);
-      this.ssao.samples = 8;
-      this.ssao.expensiveBlur = false;
+      // 0.75× AO resolution with a full-res bilateral blur reads far cleaner than the old
+      // half-res/half-blur setup (which looked blocky and noisy). 16 samples + expensiveBlur
+      // remove the speckle; the cost is acceptable for an editor/lookdev viewport.
+      this.ssao = new SSAO2RenderingPipeline('hq-ssao', this.scene, { ssaoRatio: 0.75, blurRatio: 1 }, this.cameras);
+      this.ssao.samples = 16;
+      this.ssao.expensiveBlur = true;
+      this.ssao.bilateralSamples = 12;
+      // Tight radius (scene units ~1–2) keeps AO as contact shadows in creases rather than wide
+      // dark halos around whole objects; `base` lifts it off pure black so it's a subtle dirtying.
+      this.ssao.radius = 0.6;
+      this.ssao.base = 0.15;
+      this.ssao.minZAspect = 0.2;
+      this.ssao.maxZ = 200;
     }
     this.ssao.totalStrength = s.ssaoIntensity;
-    this.ssao.radius = 2;
   }
 
   /** Load (or clear) the IBL environment + optional skybox. Async; safe to await-less. */
@@ -227,6 +234,13 @@ export class RenderPipeline {
     this.pipeline = undefined;
     this.ssao?.dispose();
     this.ssao = undefined;
+  }
+
+  /** Last-resort recovery: drop the post-processing pipelines so the raw scene keeps rendering.
+   *  Called by the render loop only after sustained post-process failures (see renderFrameSafely);
+   *  shadows + IBL are scene lighting and are left intact. */
+  recoverByDisablingEffects() {
+    this.teardownPostProcessing();
   }
 
   dispose() {

@@ -170,7 +170,12 @@ input { font-family: inherit; color: var(--text); }
   backdrop-filter: blur(8px);
 }
 .tb-menu button { display: block; width: 100%; text-align: left; padding: 6px 10px; border-radius: 5px; font-size: 13px; text-transform: capitalize; color: var(--text-dim); }
-.tb-menu button:hover { background: var(--cyan); color: #04121a; }
+.tb-menu button:hover:not(:disabled) { background: var(--cyan); color: #04121a; }
+/* Menu items with a leading icon + trailing hotkey (e.g. the edit-mode picker). */
+.tb-menu .tb-menu-item { display: flex; align-items: center; gap: 7px; }
+.tb-menu .tb-menu-item.active { color: var(--cyan); }
+.tb-menu .tb-menu-item:disabled { opacity: 0.4; cursor: default; }
+.tb-menu .tb-key { margin-left: auto; font-size: 11px; opacity: 0.7; font-variant-numeric: tabular-nums; }
 .tb-transport { display: flex; align-items: center; gap: 5px; }
 .state-pill {
   margin-left: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
@@ -256,6 +261,42 @@ input { font-family: inherit; color: var(--text); }
 .field.check { font-size: 12px; gap: 7px; }
 .field input[type='color'] { width: 40px; height: 26px; padding: 0; border: 1px solid var(--border); border-radius: 5px; background: none; }
 .field input[type='range'] { flex: 1; accent-color: var(--cyan); }
+
+/* ===== Toggle switches — all settings checkboxes render as on-theme sliders ===== */
+.field.check input[type='checkbox'],
+.studio-check input[type='checkbox'],
+.ae-check input[type='checkbox'],
+.hud-check input[type='checkbox'] {
+  appearance: none; -webkit-appearance: none; margin: 0;
+  position: relative; flex-shrink: 0; width: 32px; height: 18px; border-radius: 999px;
+  background: rgba(6, 6, 15, 0.6); border: 1px solid var(--border); cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.field.check input[type='checkbox']::after,
+.studio-check input[type='checkbox']::after,
+.ae-check input[type='checkbox']::after,
+.hud-check input[type='checkbox']::after {
+  content: ''; position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--text-dim); transition: transform 0.15s, background 0.15s;
+}
+.field.check input[type='checkbox']:checked,
+.studio-check input[type='checkbox']:checked,
+.ae-check input[type='checkbox']:checked,
+.hud-check input[type='checkbox']:checked {
+  background: color-mix(in srgb, var(--cyan) 30%, transparent); border-color: var(--cyan);
+}
+.field.check input[type='checkbox']:checked::after,
+.studio-check input[type='checkbox']:checked::after,
+.ae-check input[type='checkbox']:checked::after,
+.hud-check input[type='checkbox']:checked::after {
+  transform: translateX(14px); background: var(--cyan);
+}
+.field.check input[type='checkbox']:focus-visible,
+.studio-check input[type='checkbox']:focus-visible,
+.ae-check input[type='checkbox']:focus-visible,
+.hud-check input[type='checkbox']:focus-visible { outline: none; box-shadow: var(--glow-cyan); }
+.field.check input[type='checkbox']:disabled,
+.studio-check input[type='checkbox']:disabled { opacity: 0.45; cursor: default; }
 .add-prop { gap: 5px; }
 .add-prop button, .add-script-btn {
   display: inline-flex; align-items: center; gap: 5px; justify-content: center;
@@ -1095,12 +1136,15 @@ input { font-family: inherit; color: var(--text); }
 }
 .fx-transport { display: flex; gap: 6px; flex-wrap: wrap; }
 
-/* Selects inside fx/inspector fields */
-.fx-editor select, .inspector select {
+/* Selects inside fx/inspector/modeling fields */
+.fx-editor select, .inspector select, .modeling-tools select {
   background: rgba(6,6,15,.6); border: 1px solid var(--border); border-radius: 5px;
   padding: 4px 6px; font-size: 12px; color: var(--text); flex: 1; min-width: 0;
+  appearance: none; -webkit-appearance: none; cursor: pointer;
 }
-.fx-editor select:focus, .inspector select:focus { outline: none; border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+.fx-editor select:focus, .inspector select:focus, .modeling-tools select:focus { outline: none; border-color: var(--cyan); box-shadow: var(--glow-cyan); }
+/* The native option dropdown list (rendered by the OS) — keep it on-theme where supported. */
+.fx-editor select option, .inspector select option, .modeling-tools select option { background: var(--bg-2); color: var(--text); }
 .fx-editor input[type='number'] {
   background: rgba(6,6,15,.6); border: 1px solid var(--border); border-radius: 5px;
   padding: 4px 6px; font-size: 12px; color: var(--text); width: 100%; min-width: 0;
@@ -1232,6 +1276,10 @@ input { font-family: inherit; color: var(--text); }
 .studio-segmented button.active { background: var(--cyan); color: #04121a; border-color: var(--cyan); }
 .studio-hint, .studio-status { font-size: 11px; color: var(--text-dim); margin: 6px 0; }
 .studio-status { color: var(--accent-2); }
+.studio-warn {
+  color: #ffcf8a; background: rgba(255, 176, 32, 0.1); border: 1px solid rgba(255, 176, 32, 0.35);
+  border-radius: 6px; padding: 6px 8px; line-height: 1.45;
+}
 .studio-select {
   width: 100%; background: rgba(6, 6, 15, 0.6); border: 1px solid var(--border); border-radius: 6px;
   color: var(--text); padding: 6px; font-size: 12px; margin-bottom: 6px;

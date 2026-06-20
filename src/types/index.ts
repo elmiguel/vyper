@@ -18,7 +18,7 @@ export interface Vec3 {
 
 export type PrimitiveKind =
   // 3D solids
-  | 'box' | 'sphere' | 'ground' | 'cylinder' | 'cone' | 'plane' | 'empty'
+  | 'box' | 'sphere' | 'ground' | 'cylinder' | 'cone' | 'torus' | 'plane' | 'empty'
   // 2D shapes (flat, in the XY plane)
   | 'square' | 'circle' | 'triangle';
 
@@ -26,7 +26,7 @@ export type PrimitiveKind =
 export type GameMode = '2d' | '3d';
 
 /** Primitives offered by the toolbar/menus, per game mode. */
-export const PRIMS_3D: PrimitiveKind[] = ['box', 'sphere', 'cylinder', 'cone', 'plane', 'ground', 'empty'];
+export const PRIMS_3D: PrimitiveKind[] = ['box', 'sphere', 'cylinder', 'cone', 'torus', 'plane', 'ground', 'empty'];
 export const PRIMS_2D: PrimitiveKind[] = ['square', 'circle', 'triangle', 'plane', 'empty'];
 export const primsFor = (mode: GameMode): PrimitiveKind[] => (mode === '2d' ? PRIMS_2D : PRIMS_3D);
 

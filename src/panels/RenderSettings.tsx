@@ -1,5 +1,6 @@
 import { useEditorStore } from '@/store/editorStore';
 import { defaultRenderSettings, type RenderSettings as RS } from '@/types';
+import { EnvironmentIBL } from './EnvironmentIBL';
 
 /** A labelled checkbox row, matching the Inspector's `.field check` style. */
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
@@ -123,20 +124,7 @@ export function RenderSettings() {
             )}
           </section>
 
-          <section>
-            <h4>Environment (IBL)</h4>
-            {render.environmentUrl ? (
-              <>
-                <Slider label="Intensity" value={render.environmentIntensity} min={0} max={3} step={0.05} onChange={(v) => set({ environmentIntensity: v })} />
-                <Check label="Show as skybox" checked={render.skybox} onChange={(v) => set({ skybox: v })} />
-                <button className="add-script-btn" onClick={() => set({ environmentUrl: '', skybox: false })}>Clear environment</button>
-              </>
-            ) : (
-              <div className="empty-hint inline">
-                Import an environment (.env / HDRI) from the asset browser for reflections and ambient light.
-              </div>
-            )}
-          </section>
+          <EnvironmentIBL />
         </>
       )}
     </>

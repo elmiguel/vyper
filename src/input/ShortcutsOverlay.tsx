@@ -52,6 +52,16 @@ const NAV_ROWS: { label: string; combos: string[][] }[] = [
   { label: 'Zoom', combos: [['Wheel']] },
 ];
 
+/** Fixed Edit-Mode (mesh modeling) keys — hardcoded in useShortcuts, not rebindable. */
+const EDIT_ROWS: { label: string; combos: string[][] }[] = [
+  { label: 'Object / exit Edit Mode', combos: [['1']] },
+  { label: 'Vertex / Edge / Face', combos: [['2'], ['3'], ['4']] },
+  { label: 'Extrude selection', combos: [['Ctrl', 'E']] },
+  { label: 'Delete selection', combos: [['Delete'], ['Backspace']] },
+  { label: 'Grow / shrink selection', combos: [['>'], ['<']] },
+  { label: 'Loop select', combos: [['L']] },
+];
+
 function Chips({ combos }: { combos: string[][] }) {
   return (
     <span className="sc-chips">
@@ -113,6 +123,15 @@ export function ShortcutsOverlay() {
           <section className="sc-group">
             <h4>Scene Navigation</h4>
             {NAV_ROWS.map((r) => (
+              <div className="sc-row" key={r.label}>
+                <span className="sc-label">{r.label}</span>
+                <Chips combos={r.combos} />
+              </div>
+            ))}
+          </section>
+          <section className="sc-group">
+            <h4>Edit Mode (Modeling)</h4>
+            {EDIT_ROWS.map((r) => (
               <div className="sc-row" key={r.label}>
                 <span className="sc-label">{r.label}</span>
                 <Chips combos={r.combos} />

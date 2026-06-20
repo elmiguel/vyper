@@ -69,6 +69,8 @@ export function acquireEngine(canvas: HTMLCanvasElement): SceneManager {
   // reports its live component selection back to the store for the tools panel.
   manager.meshEditController?.setOnCommit((id, geo) => store.getState().commitMeshGeometry(id, geo));
   manager.meshEditController?.setOnSelectionChange((mode, keys) => store.getState().setMeshSelection(mode, keys));
+  // Sketch-retopo commits its cage as a brand-new object (independent of the mesh it was drawn on).
+  manager.meshEditController?.setOnCreateMesh((geo, name) => store.getState().addCustomMesh(geo, name));
   // Rigging: skeleton/skin/pose commits persist on the entity (commitRig writes the
   // live pose, which the timeline keys from).
   manager.rigController?.setOnCommit((id, c) => store.getState().commitRig(id, c.skeleton, c.skin, c.pose));
@@ -162,6 +164,7 @@ export function acquireEngine(canvas: HTMLCanvasElement): SceneManager {
         // Pass the entity's stored geometry so persisted quad topology re-opens faithfully.
         const ent = me.entityId ? s.entities.find((e) => e.id === me.entityId) : undefined;
         mec?.setTarget(me.active, me.entityId, ent?.mesh?.custom ?? null);
+        if (me.active) mec?.setGizmoMode(s.gizmoMode); // sync the component gizmo to the current tool
       }
       if (me.component !== lastMeshComp) {
         lastMeshComp = me.component;

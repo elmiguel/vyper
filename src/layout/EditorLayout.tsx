@@ -12,7 +12,7 @@ import { EffectsEditor } from '@/panels/EffectsEditor';
 import { AssetBrowser } from '@/assets/AssetBrowser';
 import { AssetViewer } from '@/assets/AssetViewer';
 import { useEditorStore } from '@/store/editorStore';
-import { dockComponents } from './panels';
+import { dockComponents, PANELS } from './panels';
 import { BUILTIN_PRESETS, DEFAULT_PRESET_ID, applyPreset } from './workspacePresets';
 import { setDockApi, reactToPlayState } from './dockController';
 
@@ -45,6 +45,14 @@ export function EditorLayout() {
       else applyPreset(api, BUILTIN_PRESETS[ws.activePresetId] ?? BUILTIN_PRESETS[DEFAULT_PRESET_ID]);
     } catch {
       applyPreset(api, BUILTIN_PRESETS[DEFAULT_PRESET_ID]);
+    }
+    // Migrate older saved layouts that predate a panel: add any missing registry panel so new
+    // panels (e.g. Modeling) surface without forcing a layout reset. Tabbed with the Inspector.
+    for (const key of ['modeling'] as const) {
+      if (!api.getPanel(key)) {
+        const ref = api.getPanel('inspector') ? 'inspector' : api.panels[0]?.id;
+        api.addPanel({ id: key, component: key, title: PANELS[key].title, ...(ref ? { position: { referencePanel: ref, direction: 'within' as const } } : {}) });
+      }
     }
 
     // Persist the live arrangement after changes settle (drag/resize/tab). Only

@@ -1,7 +1,7 @@
 import { EditableMesh } from './EditableMesh';
 
-/** Primitive shapes the Modeling Studio can spawn as editable quad meshes. */
-export type EditPrimitiveKind = 'box' | 'plane' | 'grid' | 'cylinder';
+/** Primitive shapes the modeler can spawn as editable quad meshes. */
+export type EditPrimitiveKind = 'box' | 'plane' | 'grid' | 'cylinder' | 'torus';
 
 /**
  * Build a primitive with clean quad topology (no triangle soup) so face/edge ops
@@ -19,7 +19,33 @@ export function buildEditPrimitive(kind: EditPrimitiveKind, size = 2): EditableM
       return grid(size, 8);
     case 'cylinder':
       return cylinder(size / 2, size, 16);
+    case 'torus':
+      return torus(size / 2, size / 6, 20, 12);
   }
+}
+
+/** A torus as a major×minor quad lattice (R = ring radius, r = tube radius). Not run through
+ *  orientOutward (a torus isn't convex); the preview is double-sided and Reverse Normals is
+ *  available if a consistent outward winding is needed. */
+function torus(R: number, r: number, majSeg: number, minSeg: number): EditableMesh {
+  const m = new EditableMesh();
+  const idx = (i: number, j: number) => (i % majSeg) * minSeg + (j % minSeg);
+  for (let i = 0; i < majSeg; i++) {
+    const u = (i / majSeg) * Math.PI * 2;
+    const cx = Math.cos(u);
+    const cz = Math.sin(u);
+    for (let j = 0; j < minSeg; j++) {
+      const v = (j / minSeg) * Math.PI * 2;
+      const rr = R + r * Math.cos(v);
+      m.addVertex(cx * rr, r * Math.sin(v), cz * rr);
+    }
+  }
+  for (let i = 0; i < majSeg; i++) {
+    for (let j = 0; j < minSeg; j++) {
+      m.addFace([idx(i, j), idx(i, j + 1), idx(i + 1, j + 1), idx(i + 1, j)]);
+    }
+  }
+  return m;
 }
 
 function box(size: number): EditableMesh {

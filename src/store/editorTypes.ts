@@ -37,8 +37,8 @@ import type { SerializedDockview } from 'dockview';
 export type MeshComponentMode = 'vertex' | 'edge' | 'face';
 
 /** An interactive Edit-Mode tool that takes over viewport pointer input. `select` is
- *  the default (component pick/marquee/gizmo); `loopcut`/`knife` are modal tools. */
-export type MeshEditTool = 'select' | 'loopcut' | 'knife';
+ *  the default (component pick/marquee/gizmo); the rest are modal tools that own viewport input. */
+export type MeshEditTool = 'select' | 'loopcut' | 'knife' | 'drawpoly' | 'sketchtopo';
 
 /** A modeling operator invoked from the Modeling Studio tools panel. */
 export type MeshEditOpId =

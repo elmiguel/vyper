@@ -20,6 +20,7 @@ export interface SculptHost {
   getBrush(): SculptBrushParams | null;
   rebuildPreview(): void;
   commit(): void;
+  reattachCamera(): void;
 }
 
 /**
@@ -50,7 +51,7 @@ export class MeshSculptSession {
     } else if (info.type === 2 /* UP */) {
       if (this.painting) {
         this.painting = false;
-        this.host.camera.attachControl(this.host.canvas, true);
+        this.host.reattachCamera();
         this.host.commit();
       }
     }
@@ -59,7 +60,7 @@ export class MeshSculptSession {
 
   /** Called when leaving Edit Mode / clearing the brush, to drop transient state. */
   reset(): void {
-    if (this.painting) this.host.camera.attachControl(this.host.canvas, true);
+    if (this.painting) this.host.reattachCamera();
     this.painting = false;
     this.grabPlane = undefined;
     this.grabPrev = undefined;

@@ -214,9 +214,39 @@ export class SceneManager {
     this.engine.runRenderLoop(() => {
       if (typeof document !== 'undefined' && document.hidden) return; // hidden tab → no work
       if (this.rigPlayer.active) this.rigPlayer.tick(performance.now());
-      this.scene.render();
+      this.renderFrameSafely();
     });
   }
+
+  /**
+   * Render one frame, tolerating the transient window after a post-process pipeline is created.
+   * With parallel (async) shader compilation, a render effect's `_effect` is briefly null while
+   * its shader compiles; the PostProcessRenderPipelineManager reads `postProcess.isSupported`
+   * (→ `_effect.isSupported`) during `_gatherRenderTargets` and throws on that null for a frame or
+   * two. The condition self-heals once the shader finishes, so we swallow the throw for those
+   * frames (throttled logging) instead of letting it kill the whole render loop. Any other render
+   * error is logged and rethrown.
+   */
+  private renderFrameSafely(): void {
+    try {
+      this.scene.render();
+      this.renderErrorFrames = 0;
+    } catch (err) {
+      const msg = String((err as Error)?.message ?? err);
+      const isCompileRace = msg.includes("reading 'isSupported'") || msg.includes('isSupported');
+      if (!isCompileRace) throw err;
+      // Transient post-process compile race: skip this frame; it renders next frame.
+      if (this.renderErrorFrames < 3) console.warn('[SceneManager] post-process not ready this frame, skipping:', msg);
+      this.renderErrorFrames++;
+      // If it never recovers (~1s of failures), the post-processing pipeline is genuinely broken —
+      // tear it down so the raw scene stays visible rather than leaving a silent black viewport.
+      if (this.renderErrorFrames === 60) {
+        console.error('[SceneManager] post-processing kept failing; disabling effects to recover the view.');
+        this.renderPipeline?.recoverByDisablingEffects();
+      }
+    }
+  }
+  private renderErrorFrames = 0;
 
   /** Register a second canvas that renders the same scene through the game camera. */
   registerPreview(canvas: HTMLCanvasElement): () => void {
@@ -412,6 +442,9 @@ export class SceneManager {
     configureGizmos(this.gizmos, this.mode, this.wiredGizmos, this.reportTransform);
     this.applySnap(); // a newly-enabled gizmo must pick up the current snap setting
     this.reattachGizmo();
+    // In Edit Mode the entity gizmo has nothing to attach to (the mesh is disabled); the same
+    // move/rotate/scale choice drives the component gizmo instead.
+    this.meshEdit?.setGizmoMode(mode);
   }
 
   /** Toggle grid snapping for the transform gizmos: drags snap to fixed increments

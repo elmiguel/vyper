@@ -24,4 +24,6 @@ export interface MeshToolHost {
   commit(): void;
   /** Raycast the preview surface under the cursor → hit face id + local-space point. */
   pickFace(): FacePick | null;
+  /** Re-attach camera controls after a tool drag, restoring the editor's pan defaults. */
+  reattachCamera(): void;
 }

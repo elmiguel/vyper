@@ -29,7 +29,7 @@ const MODES: { id: 'object' | MeshComponentMode; icon: typeof Box; label: string
   { id: 'face', icon: Square, label: 'Face', key: '4' },
 ];
 
-type AddMenu = 'mesh' | 'light' | 'fx' | 'volume';
+type AddMenu = 'mesh' | 'light' | 'fx' | 'volume' | 'modes';
 
 /**
  * Floating in-viewport toolbar: object creation (mesh/player/light/fx/volume) plus
@@ -56,6 +56,7 @@ export function SceneTools() {
   const editableSelected = !!entities.find((e) => e.id === selectedId && e.mesh);
   const modeActive = (id: (typeof MODES)[number]['id']) =>
     id === 'object' ? !meshEdit.active : meshEdit.active && meshEdit.component === id;
+  const activeMode = MODES.find((m) => modeActive(m.id)) ?? MODES[0];
   const modeDisabled = (id: (typeof MODES)[number]['id']) =>
     id !== 'object' && !meshEdit.active && !editableSelected;
   const setMode = (id: (typeof MODES)[number]['id']) => {
@@ -157,21 +158,32 @@ export function SceneTools() {
 
       {/* Component edit modes (object / vertex / edge / face) — 3D only, since mesh Edit Mode
           is 3D-only. Object = whole-object selection; the rest enter/switch in-mesh editing. */}
+      {/* Edit mode: a single button shows the active mode's icon; the dropdown switches modes
+          (with hotkeys), keeping the toolbar compact + leaving room for more tools. */}
       {!is2D && (
         <>
-          <div className="tb-tools" data-tour="modes">
-            {MODES.map((m) => (
-              <button
-                key={m.id}
-                className={`tb-icon ${modeActive(m.id) ? 'active' : ''}`}
-                disabled={modeDisabled(m.id)}
-                aria-pressed={modeActive(m.id)}
-                onClick={() => setMode(m.id)}
-                title={modeDisabled(m.id) ? `${m.label} mode (${m.key}) — select a mesh first` : `${m.label} mode (${m.key})`}
-              >
-                <m.icon size={16} />
-              </button>
-            ))}
+          <div className="tb-menu-wrap">
+            <button
+              className={`tb-icon ${meshEdit.active ? 'active' : ''}`}
+              title={`Edit mode: ${activeMode.label} — click to change`}
+              onClick={() => setMenu(menu === 'modes' ? null : 'modes')}
+            >
+              <activeMode.icon size={16} />
+            </button>
+            {menu === 'modes' && (
+              <div className="tb-menu">
+                {MODES.map((m) => (
+                  <button
+                    key={m.id}
+                    className={`tb-menu-item ${modeActive(m.id) ? 'active' : ''}`}
+                    disabled={modeDisabled(m.id)}
+                    onClick={() => { setMode(m.id); close(); }}
+                  >
+                    <m.icon size={14} /> {m.label} <span className="tb-key">{m.key}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <span className="tb-divider" />
         </>

@@ -40,7 +40,7 @@ export class MeshLoopCutSession {
 
   /** Clear transient state (leaving the tool / Edit Mode). */
   reset(): void {
-    if (this.sliding) this.host.camera.attachControl(this.host.canvas, true);
+    if (this.sliding) this.host.reattachCamera();
     this.sliding = false;
     this.slides = [];
     this.seedWorld = undefined;
@@ -140,7 +140,7 @@ export class MeshLoopCutSession {
     this.sliding = false;
     this.slides = [];
     this.seedWorld = undefined;
-    this.host.camera.attachControl(this.host.canvas, true);
+    this.host.reattachCamera();
     this.host.commit();
   }
 

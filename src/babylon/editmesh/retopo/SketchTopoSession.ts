@@ -10,6 +10,7 @@ import { simplifyPolyline, resampleCurve } from './stroke';
 import { CurveNetwork, type Quad4 } from './curveNetwork';
 import { coonsGrid, gridQuads } from './patchGrid';
 import { closestPointOnSoup } from './surfaceProject';
+import { applyEditorPanDefaults } from '@/babylon/cameraRig';
 
 /** Sketch-retopo handlers from the store: commit the generated quad cage, and the current
  *  global grid resolution R. */
@@ -80,6 +81,7 @@ export class SketchTopoSession {
     } else if (type === 2 /* UP */ && this.drawing) {
       this.drawing = false;
       this.camera.attachControl(this.canvas, true);
+      applyEditorPanDefaults(this.camera); // attachControl resets pan to right-mouse; keep middle-pan
       this.endStroke();
     }
   }

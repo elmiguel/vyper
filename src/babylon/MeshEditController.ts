@@ -10,7 +10,7 @@ import { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { Color3 } from '@babylonjs/core/Maths/math.color';
 import { UtilityLayerRenderer } from '@babylonjs/core/Rendering/utilityLayerRenderer';
-import type { CustomGeometry, SculptBrushParams } from '@/types';
+import type { CustomGeometry, GizmoMode, SculptBrushParams } from '@/types';
 import type { MeshEditTool } from '@/store/editorTypes';
 import { EditableMesh, type ComponentMode } from './editmesh/EditableMesh';
 import { runMeshOp, type MeshEditOp } from './editmesh/meshEditOps';
@@ -19,10 +19,14 @@ import { MeshSculptSession } from './MeshSculptSession';
 import { MeshComponentGizmo } from './MeshComponentGizmo';
 import { MeshLoopCutSession } from './MeshLoopCutSession';
 import { MeshKnifeSession } from './MeshKnifeSession';
+import { MeshDrawPolySession } from './MeshDrawPolySession';
+import { SketchTopoSession } from './editmesh/retopo/SketchTopoSession';
 import type { MeshToolHost, FacePick } from './MeshToolHost';
 import { toCustomGeometry } from './customMesh';
 import { EDITOR_LAYER } from './editorObjects';
-import { KernelEditSession, type EditComponent, type EditPick } from './editmesh/KernelEditSession';
+import { applyEditorPanDefaults } from './cameraRig';
+import { KernelEditSession, cageGeometry, type EditComponent, type EditPick, type V3 } from './editmesh/KernelEditSession';
+import type { SelectionBounds } from './editmesh/selectionBounds';
 import {
   buildVertexHighlight, buildEdgeHighlight, buildFaceHighlight,
   buildWireframe, triToFaceMap,
@@ -79,13 +83,21 @@ export class MeshEditController {
   private readonly sculpt: MeshSculptSession;
   private readonly loopCutSession: MeshLoopCutSession;
   private readonly knifeSession: MeshKnifeSession;
+  private readonly drawPolySession: MeshDrawPolySession;
+  private readonly sketchSession: SketchTopoSession;
   private tool: MeshEditTool = 'select';
+  /** Which transform gizmo Edit Mode shows (follows the editor's gizmoMode). */
+  private gizmoMode: GizmoMode = 'move';
   private marquee: MeshMarquee;
   private marqueeArmed = false;
   private marqueeAdditive = false;
   private marqueeStart = { x: 0, y: 0 };
   private showSurfaces = true;
+  /** Sketch-retopo patch grid resolution (R×R quads per patch). */
+  private retopoResolution = 4;
   private onCommit?: (entityId: string, geo: CustomGeometry) => void;
+  /** Spawn a brand-new mesh entity (sketch-retopo result — its own object, not the edited one). */
+  private onCreateMesh?: (geo: CustomGeometry, name: string) => void;
 
   constructor(
     private readonly scene: Scene,
@@ -107,15 +119,44 @@ export class MeshEditController {
       rebuildPreview: () => this.rebuildPreview(),
       commit: () => this.commitBridge(),
       pickFace: () => this.pickFace(),
+      reattachCamera: () => this.reattachCamera(),
     };
     this.sculpt = new MeshSculptSession(host);
     this.loopCutSession = new MeshLoopCutSession(host);
     this.knifeSession = new MeshKnifeSession(host);
+    this.drawPolySession = new MeshDrawPolySession({
+      scene,
+      camera,
+      getRoot: () => this.root,
+      commit: (pts) => {
+        this.session.drawPolyCommit(pts);
+        this.rebuildPreview();
+        this.commit();
+      },
+    });
+    // Sketch retopo reuses the studio's session, fed world-space surface picks + a world-space
+    // reference geometry; committed cage verts are converted back to the mesh's local space.
+    this.sketchSession = new SketchTopoSession(scene, () => this.worldRefGeo(), () => this.pickSurfaceWorld(), camera, canvas);
+    this.sketchSession.setHandlers({
+      // Retopo builds a NEW object from the cage (world-space verts) rather than editing the mesh
+      // it was drawn over — so the new polys persist as their own entity when Edit Mode exits.
+      commit: (worldVerts, faces) => {
+        if (faces.length) this.onCreateMesh?.(cageGeometry(worldVerts, faces), 'Retopo');
+      },
+      resolution: () => this.retopoResolution,
+    });
     this.gizmo = new MeshComponentGizmo(
       scene,
       () => UtilityLayerRenderer.DefaultUtilityLayer,
-      (d) => this.onGizmoDrag(d),
-      () => this.commit(),
+      {
+        begin: () => this.session.beginTransform(),
+        translate: (dx, dy, dz) => this.onGizmoTransform(() => this.session.translateSelection(dx, dy, dz)),
+        rotate: (q, pivot) => this.onGizmoTransform(() => this.session.rotateSelection(q, pivot)),
+        scale: (sx, sy, sz, pivot) => this.onGizmoTransform(() => this.session.scaleSelection(sx, sy, sz, pivot)),
+        // Commit one undo step, then re-attach so the gizmo re-centres on the moved selection and
+        // its rotate/scale handles reset to identity for the next drag.
+        end: () => { this.commit(); this.attachGizmoToSelection(); },
+      },
     );
   }
 
@@ -127,6 +168,10 @@ export class MeshEditController {
   }
   setOnSelectionChange(cb: (mode: ComponentMode, keys: string[]) => void): void {
     this.onSelectionChange = cb;
+  }
+  /** Where a new mesh (sketch-retopo cage) is created as its own entity. */
+  setOnCreateMesh(cb: (geo: CustomGeometry, name: string) => void): void {
+    this.onCreateMesh = cb;
   }
 
   /** Enter/exit Edit Mode for an entity (mirrors the old controller's contract). */
@@ -193,7 +238,14 @@ export class MeshEditController {
     this.hoverFaceMat.backFaceCulling = false;
 
     this.rebuildPreview();
+    this.reattachCamera();
+  }
+
+  /** Re-attach camera controls and restore the editor's middle-mouse pan defaults — Babylon's
+   *  attachControl resets them to right-mouse + ctrl-pan, which would break panning in Edit Mode. */
+  private reattachCamera(): void {
     this.camera.attachControl(this.canvas, true);
+    applyEditorPanDefaults(this.camera);
   }
 
   private end(): void {
@@ -204,6 +256,8 @@ export class MeshEditController {
     this.sculpt.reset();
     this.loopCutSession.reset();
     this.knifeSession.reset();
+    this.drawPolySession.reset();
+    this.sketchSession.setActive(false);
     this.tool = 'select';
     this.gizmo.dispose();
     this.disposeOverlays();
@@ -298,6 +352,32 @@ export class MeshEditController {
     this.preview?.setEnabled(on);
   }
 
+  /** Sketch-retopo patch density (clamped 1..16). */
+  setRetopoResolution(r: number): void {
+    this.retopoResolution = Math.max(1, Math.min(16, Math.round(r)));
+  }
+
+  /** Session geometry in world space (for sketch-retopo surface snapping under the entity transform). */
+  private worldRefGeo(): CustomGeometry {
+    const geo = this.session.geometry;
+    if (!this.root) return geo;
+    const m = this.root.getWorldMatrix();
+    const positions: number[] = [];
+    for (let i = 0; i < geo.positions.length; i += 3) {
+      const p = Vector3.TransformCoordinates(new Vector3(geo.positions[i], geo.positions[i + 1], geo.positions[i + 2]), m);
+      positions.push(p.x, p.y, p.z);
+    }
+    return { ...geo, positions };
+  }
+
+  /** World-space surface point under the cursor on the preview (for sketch-retopo strokes). */
+  private pickSurfaceWorld(): V3 | null {
+    if (!this.preview) return null;
+    const pick = this.scene.pick(this.scene.pointerX, this.scene.pointerY, (m) => m === this.preview, false, this.camera);
+    const p = pick?.pickedPoint;
+    return pick?.hit && p ? [p.x, p.y, p.z] : null;
+  }
+
   /** Rebuild the component overlays from the kernel selection. The edge wireframe is always drawn
    *  (so the mesh structure reads in every mode); vertex mode also shows all vertices as dots; the
    *  active mode's selection is highlighted on top. Skipped while a bridged tool owns the preview. */
@@ -365,18 +445,30 @@ export class MeshEditController {
     if (this.tool === tool) return;
     this.loopCutSession.reset();
     this.knifeSession.reset();
+    this.drawPolySession.reset();
     this.tool = tool;
+    this.sketchSession.setActive(tool === 'sketchtopo'); // snapshots/clears the retopo surface
     if (tool !== 'select') {
       this.brush = null;
       this.detachGizmo();
       this.clearHover();
       this.session.clearSelection();
-      this.ensureEdit(); // loop-cut/knife mutate the scratch mesh
+      // Loop-cut/knife edit through the bridged scratch mesh; draw-poly/sketch-retopo commit to
+      // the kernel directly (preview must follow the session, so drop any scratch mesh).
+      if (tool === 'loopcut' || tool === 'knife') this.ensureEdit();
+      else this.dropEdit();
       this.refreshOverlay();
       this.emitSelection();
     } else {
       this.dropEdit();
     }
+  }
+
+  /** Finish the active modal tool's in-progress path (Enter / done). Loop-cut/knife also finish
+   *  on their own gestures; this is the keyboard path and how draw-poly/sketch-retopo commit. */
+  finishTool(): void {
+    if (this.tool === 'drawpoly') this.drawPolySession.finish();
+    else if (this.tool === 'sketchtopo') this.sketchSession.finish();
   }
 
   // ---- pointer routing -----------------------------------------------------
@@ -388,13 +480,17 @@ export class MeshEditController {
     if (e.altKey) return true;
     if (this.tool === 'loopcut') return this.loopCutSession.route(info);
     if (this.tool === 'knife') return this.knifeSession.route(info);
+    if (this.tool === 'drawpoly') return this.drawPolySession.route(info);
+    if (this.tool === 'sketchtopo') { this.sketchSession.route(info.type, info.event as PointerEvent); return true; }
     if (this.gizmo.dragging) return true;
     if (e.button === 2) return this.active;
 
     if (info.type === 1 && e.button === 0) {
       const pick = this.pickComponent();
       if (pick) {
-        this.session.applyPick(pick, e.shiftKey ? 'add' : 'replace');
+        // Shift adds, Ctrl/Cmd removes (deselect), neither replaces — matches the studio.
+        const mode = e.ctrlKey || e.metaKey ? 'remove' : e.shiftKey ? 'add' : 'replace';
+        this.session.applyPick(pick, mode);
         this.afterSelectionChange();
         this.marqueeArmed = false;
       } else {
@@ -532,15 +628,82 @@ export class MeshEditController {
   }
   growSelection(): void { this.session.grow(); this.afterSelectionChange(); }
   shrinkSelection(): void { this.session.shrink(); this.afterSelectionChange(); }
-  selectEdgeLoop(): void {
-    if (this.component !== 'edge') return;
-    const edges = this.session.selectionEdgesCompact();
-    if (edges[0]) this.session.applyPick({ kind: 'edge', edge: edges[0] }, 'replace', true);
-    this.afterSelectionChange();
+  clearSelection(): void { this.session.clearSelection(); this.afterSelectionChange(); }
+  /** Loop select: edge loop through a selected edge, or vertex/face loop through two anchors. */
+  selectLoop(): void { this.session.selectLoop(); this.afterSelectionChange(); }
+  /** Edge ring through the first selected edge. */
+  selectRing(): void { this.session.selectRing(); this.afterSelectionChange(); }
+  /** Convert the selection to another component type, switching mode to match. */
+  convertSelection(to: ComponentMode): void {
+    this.session.convertTo(to as EditComponent);
+    this.component = to; // emitSelection reports the new mode → store syncs meshEdit.component
+    this.detachGizmo();
+    this.refreshOverlay();
+    this.attachGizmoToSelection();
+    this.emitSelection();
   }
-  selectEdgeRing(): void {
-    // Ring selection isn't yet wired to the kernel session; fall back to loop for now.
-    this.selectEdgeLoop();
+
+  // ---- kernel geometry operators (exposed as direct methods, like the studio) ----------
+  poke(): void { this.runSessionOp(() => this.session.poke()); }
+  quadrangulate(): void { this.runSessionOp(() => this.session.quadrangulate()); }
+  reverseNormals(): void { this.runSessionOp(() => this.session.reverseNormals()); }
+  extract(): void { this.runSessionOp(() => this.session.extract()); }
+  averageVertices(): void { this.runSessionOp(() => this.session.averageVertices()); }
+  collapseEdges(): void { this.runSessionOp(() => this.session.collapseEdges()); }
+  addFace(): void { this.runSessionOp(() => this.session.addFaceFromSelection()); }
+  addVertexOnEdges(): void { this.runSessionOp(() => this.session.addVertexOnEdges()); }
+  // ---- component clipboard (copy / paste / duplicate) ----------------------
+  /** Copy the face-scoped selection to the session clipboard (no geometry change). */
+  copyComponents(): void { if (this.active) this.session.copySelection(); }
+  /** Whether the session clipboard holds pasteable faces. */
+  canPasteComponents(): boolean { return this.session.canPaste(); }
+  /** Duplicate the selected faces in place, re-selecting the copies (face mode). */
+  duplicateComponents(): void {
+    if (!this.active || this.component !== 'face') return;
+    this.runSessionOp(() => this.session.duplicateSelection());
+  }
+  /** Paste clipboard faces (offset slightly), selecting them in face mode. */
+  pasteComponents(): void {
+    if (!this.active || !this.session.canPaste()) return;
+    this.component = 'face';
+    this.runSessionOp(() => this.session.paste());
+  }
+
+  // ---- numeric transform (Inspector fields) --------------------------------
+  /** Local-space bounds of the current selection (centre + size) for the Inspector fields. */
+  selectionBounds(): SelectionBounds { return this.session.selectionBounds(); }
+  /** Set the selection's centroid on one axis (0=x,1=y,2=z) to an absolute value. */
+  setSelectionCenter(axis: 0 | 1 | 2, value: number): void {
+    if (this.active && this.session.setSelectionCenter(axis, value)) this.afterNumericTransform();
+  }
+  /** Set the selection's extent on one axis to an absolute size (scales about its centroid). */
+  setSelectionDimension(axis: 0 | 1 | 2, value: number): void {
+    if (this.active && this.session.setSelectionDimension(axis, value)) this.afterNumericTransform();
+  }
+  /** Rotate the selection about its centroid by an euler delta (degrees). */
+  nudgeSelectionRotation(ex: number, ey: number, ez: number): void {
+    if (this.active && this.session.nudgeSelectionRotation(ex, ey, ez)) this.afterNumericTransform();
+  }
+  private afterNumericTransform(): void {
+    this.rebuildPreview();
+    this.attachGizmoToSelection();
+    this.emitSelection();
+    this.commit();
+  }
+
+  // Island grouping (no geometry change → just re-select + refresh overlays).
+  group(): void { this.session.group(); this.afterSelectionChange(); }
+  ungroup(): void { this.session.ungroup(); this.afterSelectionChange(); }
+  isSelectionGrouped(): boolean { return this.session.isSelectionGrouped(); }
+
+  /** Run a session geometry op, then refresh preview/gizmo/selection and commit (one undo step). */
+  private runSessionOp(fn: () => void): void {
+    if (!this.active) return;
+    fn();
+    this.rebuildPreview();
+    this.attachGizmoToSelection();
+    this.emitSelection();
+    this.commit();
   }
 
   frameSelection(): void {
@@ -562,21 +725,34 @@ export class MeshEditController {
     return Vector3.TransformCoordinates(world, inv);
   }
 
-  // ---- gizmo-driven component translation ----------------------------------
+  // ---- gizmo-driven component transform (move / rotate / scale) ------------
 
-  private onGizmoDrag(d: { x: number; y: number; z: number }): void {
-    this.session.translateSelection(d.x, d.y, d.z);
+  /** Apply one live gizmo-drag delta to the selection, re-bake, and refresh the preview.
+   *  The pre-drag snapshot was taken in `begin`, so the whole drag is one undo step. */
+  private onGizmoTransform(apply: () => void): void {
+    apply();
     this.session.endTransform(); // re-bake; positions already mutated
     this.rebuildPreview();
   }
 
+  /** Switch which transform gizmo Edit Mode shows (driven by the editor's gizmoMode). */
+  setGizmoMode(mode: GizmoMode): void {
+    this.gizmoMode = mode;
+    if (mode === 'select') this.detachGizmo();
+    else {
+      this.gizmo.setMode(mode);
+      this.attachGizmoToSelection();
+    }
+  }
+
   private attachGizmoToSelection(): void {
+    const mode = this.gizmoMode;
     const c = this.session.selectionCentroid();
-    if (!c || !this.root) {
+    if (mode === 'select' || !c || !this.root) {
       this.detachGizmo();
       return;
     }
-    this.session.beginTransform(); // snapshot so the whole drag is one undo step
+    this.gizmo.setMode(mode);
     this.gizmo.attach({ x: c[0], y: c[1], z: c[2] }, this.root);
   }
   private detachGizmo(): void {

@@ -9,10 +9,10 @@ import { EFFECT_PRESETS, presetsForMode } from '@/effects/presets';
 import { RenderSettings } from './RenderSettings';
 import { MaterialEditor } from './MaterialEditor';
 import { TerrainPanel } from './TerrainPanel';
-import { ModelingPanel } from './ModelingPanel';
 import { PrefabsPanel } from './PrefabsPanel';
 import { VolumePanel } from './VolumePanel';
 import { SpawnerPanel } from './SpawnerPanel';
+import { ComponentTransform } from './ComponentTransform';
 
 // Trim float noise (e.g. live-play transforms) to 3 decimals when not editing.
 const trim3 = (v: number) => String(Number(v.toFixed(3)));
@@ -127,6 +127,9 @@ export function Inspector() {
           />
         </div>
 
+        {/* In Edit Mode, surface numeric transform for the vertex/edge/face selection. */}
+        <ComponentTransform />
+
         <section>
           <h4>Transform</h4>
           <Vec3Row label="Position" value={pos} disabled={playing} onChange={(v) => updateTransform(entity.id, { position: v })} />
@@ -145,7 +148,7 @@ export function Inspector() {
             </div>
             {entity.mesh.kind !== 'model' && <MaterialEditor entity={entity} disabled={playing} />}
             {entity.mesh.kind === 'terrain' && <TerrainPanel entity={entity} disabled={playing} />}
-            {entity.mesh.kind !== 'model' && entity.mesh.kind !== 'terrain' && <ModelingPanel entity={entity} disabled={playing} />}
+            {/* CSG (Modeling) lives in the Modeling panel, not here. */}
             <label className="field check">
               <input type="checkbox" checked={entity.mesh.visible} onChange={(e) => updateMesh(entity.id, { visible: e.target.checked })} />
               Visible

@@ -11,6 +11,7 @@ import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Light } from '@babylonjs/core/Lights/light';
 import '@babylonjs/core/Meshes/Builders/linesBuilder';
 import '@babylonjs/core/Meshes/Builders/discBuilder';
+import '@babylonjs/core/Meshes/Builders/torusBuilder';
 import type { Entity, GameMode } from '@/types';
 import { defaultTerrain } from '@/types';
 import { buildTerrainMesh } from './terrainMesh';
@@ -40,6 +41,8 @@ export function buildMesh(scene: Scene, e: Entity): AbstractMesh {
       return MeshBuilder.CreateCylinder(e.id, { height: 1.4, diameter: 1 }, scene);
     case 'cone':
       return MeshBuilder.CreateCylinder(e.id, { height: 1.4, diameterTop: 0, diameterBottom: 1 }, scene);
+    case 'torus':
+      return MeshBuilder.CreateTorus(e.id, { diameter: 1, thickness: 0.35, tessellation: 24 }, scene);
     // ---- 2D shapes: flat, lying in the XY plane ----
     case 'square':
       return MeshBuilder.CreatePlane(e.id, { size: 1, sideOrientation: DOUBLE_SIDED }, scene);

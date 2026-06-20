@@ -3,12 +3,12 @@ import { Hierarchy } from '@/panels/Hierarchy';
 import { Inspector } from '@/panels/Inspector';
 import { ScriptEditor } from '@/panels/ScriptEditor';
 import { ConsolePanel } from '@/panels/ConsolePanel';
+import { ModelingTools } from '@/panels/ModelingTools';
 import { SceneViewport } from '@/babylon/SceneViewport';
 import { GamePreview } from '@/babylon/GamePreview';
 
-/** Stable identifiers for the dockable panels — used as both panel id and component key.
- *  (3D modeling/rigging tools live in the separate Modeling area, not here.) */
-export type PanelKey = 'scene' | 'preview' | 'hierarchy' | 'inspector' | 'scripts' | 'console';
+/** Stable identifiers for the dockable panels — used as both panel id and component key. */
+export type PanelKey = 'scene' | 'preview' | 'hierarchy' | 'inspector' | 'modeling' | 'scripts' | 'console';
 
 /** Title + content component for each dockable panel. The title shows in the dock tab. */
 export const PANELS: Record<PanelKey, { title: string; Component: () => JSX.Element }> = {
@@ -16,6 +16,7 @@ export const PANELS: Record<PanelKey, { title: string; Component: () => JSX.Elem
   preview: { title: 'Game', Component: GamePreview },
   hierarchy: { title: 'Hierarchy', Component: Hierarchy },
   inspector: { title: 'Inspector', Component: Inspector },
+  modeling: { title: 'Modeling', Component: ModelingTools },
   scripts: { title: 'Scripts', Component: ScriptEditor },
   console: { title: 'Debugger', Component: ConsolePanel },
 };
