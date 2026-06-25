@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Trash2, ChevronsDownUp } from 'lucide-react';
+import { Trash2, ChevronsDownUp, Save, Copy, Check } from 'lucide-react';
 import { useConsoleStore } from '@/store/consoleStore';
 import { getManager } from '@/babylon/engine';
 import { useEditorStore } from '@/store/editorStore';
@@ -11,10 +11,13 @@ export function ConsolePanel() {
   const logs = useConsoleStore((s) => s.logs);
   const filter = useConsoleStore((s) => s.filter);
   const collapse = useConsoleStore((s) => s.collapse);
-  const { clear, toggleFilter, setCollapse } = useConsoleStore();
+  const persist = useConsoleStore((s) => s.persist);
+  const { clear, toggleFilter, setCollapse, setPersist } = useConsoleStore();
   const playState = useEditorStore((s) => s.playState);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [stats, setStats] = useState({ fps: 0, meshes: 0 });
+  const [copiedAll, setCopiedAll] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -36,6 +39,29 @@ export function ConsolePanel() {
 
   const visible = logs.filter((l) => filter[l.level]);
 
+  const lineText = (l: (typeof visible)[number]) =>
+    `${l.count > 1 ? `(${l.count}x) ` : ''}${l.source}  ${l.message}`;
+
+  const copyAll = async () => {
+    try {
+      await navigator.clipboard.writeText(visible.map(lineText).join('\n'));
+      setCopiedAll(true);
+      setTimeout(() => setCopiedAll(false), 1200);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
+  const copyLine = async (l: (typeof visible)[number]) => {
+    try {
+      await navigator.clipboard.writeText(lineText(l));
+      setCopiedId(l.id);
+      setTimeout(() => setCopiedId((id) => (id === l.id ? null : id)), 1200);
+    } catch {
+      /* clipboard unavailable */
+    }
+  };
+
   return (
     <div className="panel console-panel" data-tour="console">
       <div className="panel-head console-head">
@@ -52,10 +78,17 @@ export function ConsolePanel() {
             </button>
           ))}
         </div>
+        <button className={`mini-btn ${persist ? 'on' : ''}`} onClick={() => setPersist(!persist)} title="Persist logs across reloads">
+          <Save size={13} />
+          <span>Persist</span>
+        </button>
         <button className={`mini-btn ${collapse ? 'on' : ''}`} onClick={() => setCollapse(!collapse)} title="Collapse repeats">
           <ChevronsDownUp size={13} />
         </button>
-        <button className="mini-btn" onClick={clear} title="Clear">
+        <button className="mini-btn" onClick={copyAll} title="Copy all logs">
+          {copiedAll ? <Check size={13} /> : <Copy size={13} />}
+        </button>
+        <button className="mini-btn" onClick={clear} title="Clear logs">
           <Trash2 size={13} />
         </button>
       </div>
@@ -65,6 +98,14 @@ export function ConsolePanel() {
             {l.count > 1 && <span className="log-count">{l.count}</span>}
             <span className="log-source">{l.source}</span>
             <span className="log-msg">{l.message}</span>
+            <button
+              className="line-copy"
+              onClick={() => copyLine(l)}
+              title="Copy line"
+              aria-label="Copy line"
+            >
+              {copiedId === l.id ? <Check size={12} /> : <Copy size={12} />}
+            </button>
           </div>
         ))}
         {visible.length === 0 && <div className="empty-hint">Console output appears here. Press Play to run scripts.</div>}

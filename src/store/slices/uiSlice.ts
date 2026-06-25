@@ -68,7 +68,17 @@ export function createUiSlice(set: StoreSet): UiSlice {
     toggleSurfaces: () => set((s) => ({ showSurfaces: !s.showSurfaces })),
     toggleSnapToGrid: () => set((s) => ({ snapToGrid: !s.snapToGrid })),
 
-    play: () => set({ playState: 'playing' }),
+    // Leaving Edit / Sculpt / Rig mode on Play re-enables the edited entity's source mesh — the
+    // MeshEdit/Rig controllers hide it while editing (setEnabled(false)), and nothing re-enabled it
+    // on Play, so an entity left in Edit Mode played invisible and was ignored by gameplay (e.g. a
+    // player in Edit Mode never rendered and dead-zone volumes skipped it).
+    play: () =>
+      set((s) => ({
+        playState: 'playing',
+        meshEdit: { ...s.meshEdit, active: false, sculpt: null, tool: 'select', selection: [] },
+        rig: { ...s.rig, active: false },
+        sculpting: false,
+      })),
     pause: () => set((s) => ({ playState: s.playState === 'paused' ? 'playing' : 'paused' })),
     stop: () => set({ playState: 'editing' }),
     toggleInspector3D: () => set((s) => ({ showInspector3D: !s.showInspector3D })),

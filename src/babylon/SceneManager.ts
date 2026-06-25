@@ -49,6 +49,7 @@ import {
   GAME_CAMERA_ID,
 } from './sceneBuilders';
 import { canvasThumbnail } from './thumbnail';
+import { gameConsole } from '@/store/consoleStore';
 
 export class SceneManager {
   readonly engine: Engine;
@@ -516,10 +517,20 @@ export class SceneManager {
   /** Register every spawner with a target at Play start: hide each source object into its pool
    *  and pre-warm as configured. Instances are runtime-only, so Stop discards them. */
   initSpawners(entities: Entity[]): void {
+    const specs = entities.filter((e) => e.spawner?.targetId);
+    // A spawner's target is pooled (hidden) at Play and only appears via spawn(). That silently
+    // hid players when a Spawner was pointed at them — surface it so it's never a mystery.
+    for (const e of specs) {
+      const t = entities.find((x) => x.id === e.spawner!.targetId);
+      const playerish = t && (t.tag === 'player' || t.scriptIds.length > 0);
+      gameConsole[playerish ? 'warn' : 'info'](
+        'spawner',
+        `"${e.name}" pools "${t?.name ?? e.spawner!.targetId}" — it's hidden until spawned` +
+          (playerish ? '. If this is your controlled object, remove the spawner or retarget it (it won\'t render or be hit by volumes).' : '.'),
+      );
+    }
     this.spawnPool.register(
-      entities
-        .filter((e) => e.spawner?.targetId)
-        .map((e) => ({ spawnerId: e.id, targetId: e.spawner!.targetId!, prewarm: e.spawner!.prewarm })),
+      specs.map((e) => ({ spawnerId: e.id, targetId: e.spawner!.targetId!, prewarm: e.spawner!.prewarm })),
     );
   }
   /** Tear down all spawned instances (on Stop). */

@@ -615,8 +615,18 @@ input.tb-toggle:focus-visible { outline: none; box-shadow: var(--glow-cyan); }
 .lvl.info.on { color: var(--cyan); border-color: rgba(34,211,238,.35); }
 .lvl.log.on, .lvl.debug.on { color: var(--text); }
 .console-scroll { flex: 1; overflow: auto; padding: 4px 0; font-family: 'SF Mono', ui-monospace, Menlo, monospace; font-size: 12px; }
-.log-line { display: flex; gap: 8px; padding: 3px 12px; border-bottom: 1px solid rgba(77, 63, 176, 0.07); align-items: baseline; }
-.log-line:hover { background: rgba(34, 211, 238, 0.05); }
+.log-line { position: relative; display: flex; gap: 8px; padding: 3px 12px; border-bottom: 1px solid rgba(77, 63, 176, 0.07); align-items: baseline; border-left: 2px solid transparent; }
+.log-line:hover { background: rgba(34, 211, 238, 0.08); border-left-color: var(--cyan); }
+.log-line .log-msg { flex: 1; }
+.line-copy {
+  position: absolute; top: 2px; right: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 3px; border-radius: 5px;
+  background: rgba(16, 14, 38, 0.9); border: 1px solid var(--border); color: var(--text-dim);
+  opacity: 0; transition: opacity 0.12s, color 0.12s, border-color 0.12s;
+}
+.log-line:hover .line-copy { opacity: 1; }
+.line-copy:hover { color: var(--cyan); border-color: var(--cyan); box-shadow: var(--glow-cyan); }
 .log-count { background: var(--bg-3); color: var(--text-dim); border-radius: 9px; padding: 0 6px; font-size: 10px; }
 .log-source { color: var(--purple); flex-shrink: 0; }
 .log-msg { white-space: pre-wrap; word-break: break-word; color: var(--text); }

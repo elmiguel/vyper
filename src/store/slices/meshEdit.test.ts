@@ -42,6 +42,17 @@ describe('beginMeshEdit / endMeshEdit', () => {
     expect(s().meshEdit.active).toBe(false);
     expect(s().meshEdit.selection).toEqual([]);
   });
+
+  it('pressing Play exits Edit Mode (so the edited entity re-enables + plays normally)', () => {
+    s().beginMeshEdit('e1');
+    expect(s().meshEdit.active).toBe(true);
+    s().play();
+    expect(s().playState).toBe('playing');
+    expect(s().meshEdit.active).toBe(false); // controller re-enables the source mesh on exit
+    expect(s().rig.active).toBe(false);
+    expect(s().sculpting).toBe(false);
+    s().stop();
+  });
 });
 
 describe('setMeshComponent / setMeshSelection', () => {

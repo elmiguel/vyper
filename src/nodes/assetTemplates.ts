@@ -22,7 +22,12 @@ import type { EngineNodeData } from './nodeTypes';
 type Fields = EngineNodeData['fields'];
 
 const n = (f: Fields, key: string, fallback: number): string => {
-  const v = Number(f?.[key as keyof typeof f]);
+  // A blank/missing field falls back to the default — without this, an empty
+  // value coerces to 0 (Number('') === 0), silently zeroing camera distance,
+  // move speed, etc. An explicit numeric 0 is preserved.
+  const raw = f?.[key as keyof typeof f];
+  if (raw === undefined || raw === null || raw === '') return String(fallback);
+  const v = Number(raw);
   return String(Number.isFinite(v) ? v : fallback);
 };
 

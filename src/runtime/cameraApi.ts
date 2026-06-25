@@ -57,17 +57,29 @@ export function makeCameraApi(cam: UniversalCamera, sceneManager: SceneManager, 
       cam.rotation.set(pitch, yaw, 0);
       cam.position.set(ent.position.x, ent.position.y + eye, ent.position.z);
     },
-    /** Orbit the camera behind the entity at a distance/height. */
+    /** Trail the camera behind + above the entity, always looking AT it.
+     *
+     *  The camera sits `distance` back (along yaw, with pitch orbiting it
+     *  up/down) and `height` above the entity, and aims directly at the entity's
+     *  position — so the character is always centred in frame. Aiming at a point
+     *  ABOVE the entity (or along a free pitch that never pointed at it) dropped
+     *  the character below the frame, making the third-person view look first-
+     *  person / show nothing. */
     followThirdPerson(
       ent: { position: { x: number; y: number; z: number } },
       opts?: { distance?: number; height?: number },
     ) {
-      const dist = opts?.distance ?? 6;
-      const height = opts?.height ?? 3;
-      cam.rotation.set(pitch, yaw, 0);
-      const bx = -Math.sin(yaw) * dist;
-      const bz = -Math.cos(yaw) * dist;
-      cam.position.set(ent.position.x + bx, ent.position.y + height, ent.position.z + bz);
+      // Guard against a degenerate distance (0, negative, or NaN from a cleared
+      // field) — without this the camera collapses onto the entity.
+      const dist = Number.isFinite(opts?.distance) && (opts!.distance as number) > 0 ? (opts!.distance as number) : 6;
+      const height = Number.isFinite(opts?.height) ? (opts!.height as number) : 3;
+      const cp = Math.cos(pitch);
+      const tx = ent.position.x;
+      const ty = ent.position.y;
+      const tz = ent.position.z;
+      // Behind by `dist` (yaw + pitch), raised by `height`; look straight at the entity.
+      cam.position.set(tx - Math.sin(yaw) * cp * dist, ty + Math.sin(pitch) * dist + height, tz - Math.cos(yaw) * cp * dist);
+      cam.setTarget(new Vector3(tx, ty, tz));
     },
 
     // ----- Generic camera changes (usable from any script / trigger) -----
