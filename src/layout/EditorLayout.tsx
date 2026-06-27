@@ -48,7 +48,7 @@ export function EditorLayout() {
     }
     // Migrate older saved layouts that predate a panel: add any missing registry panel so new
     // panels (e.g. Modeling) surface without forcing a layout reset. Tabbed with the Inspector.
-    for (const key of ['modeling'] as const) {
+    for (const key of ['modeling', 'gameStyle'] as const) {
       if (!api.getPanel(key)) {
         const ref = api.getPanel('inspector') ? 'inspector' : api.panels[0]?.id;
         api.addPanel({ id: key, component: key, title: PANELS[key].title, ...(ref ? { position: { referencePanel: ref, direction: 'within' as const } } : {}) });

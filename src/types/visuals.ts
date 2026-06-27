@@ -10,8 +10,10 @@
  * meshes and trigger volumes ignore this and stay unlit.
  */
 export interface MaterialConfig {
-  /** PBR (default in 3D) or the legacy flat StandardMaterial look. */
-  shading: 'standard' | 'pbr';
+  /** PBR (default in 3D), the legacy flat StandardMaterial look, or `foliage` —
+   *  a PBR surface with vertex wind sway + fresnel rim glow (the stylized
+   *  "neon grass" look). */
+  shading: 'standard' | 'pbr' | 'foliage';
   /** Metalness 0–1 (PBR). */
   metallic: number;
   /** Roughness 0–1 (PBR); 1 = fully matte. */
@@ -31,6 +33,64 @@ export interface MaterialConfig {
   roughnessMap?: string;
   aoMap?: string;
   emissiveMap?: string;
+  /** Foliage shading tuning (only used when `shading: 'foliage'`). */
+  foliage?: FoliageConfig;
+}
+
+/** Wind + rim-glow parameters for the stylized foliage material. */
+export interface FoliageConfig {
+  /** Horizontal sway distance at the blade tip (world units). */
+  windStrength: number;
+  /** Sway oscillation speed. */
+  windSpeed: number;
+  /** Fresnel rim glow colour (hex). */
+  rimColor: string;
+  /** Rim glow strength (added to emissive at grazing angles). */
+  rimIntensity: number;
+}
+
+/** Default foliage tuning: a gentle sway and a soft green rim. */
+export function defaultFoliage(): FoliageConfig {
+  return { windStrength: 0.12, windSpeed: 1.6, rimColor: '#7dff8a', rimIntensity: 0.6 };
+}
+
+/**
+ * A scattered grass field grown over a host mesh's surface (typically terrain).
+ * Renders as thin-instanced blades (one draw call) using the foliage material, so
+ * thousands of blades stay cheap. Stored on the host's MeshConfig (`mesh.grass`)
+ * so it persists and rebuilds with the terrain.
+ */
+export interface GrassConfig {
+  /** Blades per square world unit — drives the total blade count over the surface. */
+  density: number;
+  /** Blade height in world units (with per-blade jitter). */
+  bladeHeight: number;
+  /** Blade base width in world units. */
+  bladeWidth: number;
+  /** Base blade colour (hex). */
+  color: string;
+  /** Fresnel rim-glow colour (hex). */
+  rimColor: string;
+  /** Rim glow strength. */
+  rimIntensity: number;
+  /** Wind sway distance at the blade tip (world units). */
+  windStrength: number;
+  /** Wind oscillation speed. */
+  windSpeed: number;
+}
+
+/** Balanced default grass: a full-but-smooth field of mid-green blades. */
+export function defaultGrass(): GrassConfig {
+  return {
+    density: 8,
+    bladeHeight: 0.7,
+    bladeWidth: 0.12,
+    color: '#3fa54a',
+    rimColor: '#9dff7a',
+    rimIntensity: 0.7,
+    windStrength: 0.18,
+    windSpeed: 1.8,
+  };
 }
 
 /** Default PBR material seeded when a user first opens the material editor: a
@@ -60,6 +120,9 @@ export type ShadowQuality = 512 | 1024 | 2048;
  *  premium "PCSS" look; directional/spot lights only, PCF fallback otherwise). */
 export type ShadowType = 'hard' | 'soft' | 'contact';
 
+/** Depth-of-field blur kernel quality (maps to DefaultRenderingPipeline.depthOfFieldBlurLevel). */
+export type DofBlur = 'low' | 'medium' | 'high';
+
 /**
  * Scene-wide, high-quality rendering configuration: the post-processing pipeline
  * (tone mapping, bloom, anti-aliasing, ambient occlusion, vignette/grain),
@@ -85,8 +148,12 @@ export interface RenderSettings {
   ssaoIntensity: number;
   /** Darkened screen edges. */
   vignette: boolean;
+  /** Vignette strength (image-processing vignetteWeight; higher = darker edges). */
+  vignetteWeight: number;
   /** Film grain. */
   grain: boolean;
+  /** Film-grain strength (GrainPostProcess intensity). */
+  grainIntensity: number;
   /** Dynamic shadows cast by directional/point lights. */
   shadows: boolean;
   shadowQuality: ShadowQuality;
@@ -107,6 +174,47 @@ export interface RenderSettings {
   environmentIntensity: number;
   /** Render the environment as a background skybox. */
   skybox: boolean;
+
+  // ----- Color grade (image-processing ColorCurves) -----
+  /** Global saturation, -100 (grayscale) … +100 (vivid); 0 = neutral. */
+  saturation: number;
+  /** Split-tone warmth, -1 (cool highlights / warm shadows) … +1 (warm highlights /
+   *  cool "blue" shadows); 0 = neutral. Drives the cinematic teal-and-orange look. */
+  warmth: number;
+
+  // ----- Lens effects -----
+  /** Chromatic aberration (RGB fringing toward the screen edges). */
+  chromaticAberration: boolean;
+  /** Aberration amount in pixels (~0–5 reads as subtle…strong). */
+  chromaticAberrationAmount: number;
+  /** Depth-of-field blur (subjects in focus, near/far blurred). */
+  dof: boolean;
+  /** Focus plane distance in millimetres (Babylon DOF unit). */
+  dofFocusDistance: number;
+  /** Aperture f-stop — lower = shallower focus (more blur). */
+  dofFStop: number;
+  /** Lens focal length in millimetres. */
+  dofFocalLength: number;
+  /** Blur kernel quality. */
+  dofBlur: DofBlur;
+  /** Edge sharpening (counteracts the softness from bloom/DOF/AA). */
+  sharpen: boolean;
+  /** Sharpen edge amount 0–1. */
+  sharpenAmount: number;
+
+  // ----- Camera -----
+  /** Game-camera vertical field of view in degrees (wide-angle = larger). */
+  fov: number;
+
+  // ----- Volumetric light -----
+  /** God rays / light shafts radiating from the scene's directional light. */
+  godRays: boolean;
+  /** God-ray exposure/intensity. */
+  godRaysIntensity: number;
+
+  /** Id of the look preset this matches (for gallery highlighting). Cleared to
+   *  undefined whenever a setting is changed manually, so the gallery shows "Custom". */
+  lookPreset?: string;
 }
 
 /** Sensible high-quality defaults: filmic tone mapping, soft bloom, AA and
@@ -123,7 +231,9 @@ export function defaultRenderSettings(): RenderSettings {
     ssao: false,
     ssaoIntensity: 1,
     vignette: false,
+    vignetteWeight: 1.5,
     grain: false,
+    grainIntensity: 15,
     shadows: true,
     shadowQuality: 1024,
     shadowType: 'soft',
@@ -134,6 +244,20 @@ export function defaultRenderSettings(): RenderSettings {
     environmentUrl: '',
     environmentIntensity: 1,
     skybox: false,
+    saturation: 0,
+    warmth: 0,
+    chromaticAberration: false,
+    chromaticAberrationAmount: 1,
+    dof: false,
+    dofFocusDistance: 8000,
+    dofFStop: 2.8,
+    dofFocalLength: 50,
+    dofBlur: 'medium',
+    sharpen: false,
+    sharpenAmount: 0.3,
+    fov: 45,
+    godRays: false,
+    godRaysIntensity: 0.6,
   };
 }
 

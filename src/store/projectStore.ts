@@ -1,93 +1,33 @@
 import { create } from 'zustand';
-import { nanoid } from 'nanoid';
 import { api, type GameSummary, type SceneMeta, type ScriptRow, type VersionMeta } from '@/data';
 import { useEditorStore, starterEntities } from './editorStore';
 import { hmrSingleton } from './hmrStore';
 import { applyAutoCover, captureViewportCover, resetAutoCover } from './projectCover';
 import { loadGlobalLibrary, setLastGame } from './globalLibrary';
-import type { Asset, Entity, GameDesign, GameMode, MaterialPreset, PrefabDef, Script } from '@/types';
-import { emptyDesign } from '@/types';
-
-/** A fresh modeling project starts from one editable box at the origin. */
-function modelStarterEntities(): Entity[] {
-  return [
-    {
-      id: nanoid(8),
-      name: 'Mesh',
-      parentId: null,
-      transform: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 } },
-      mesh: { kind: 'box', color: '#9aa3b2', visible: true },
-      scriptIds: [],
-      props: {},
-    },
-  ];
-}
-import type { Workspace } from './editorTypes';
+import type { Asset, GameMode } from '@/types';
 import { defaultWorkspace } from './slices/workspaceSlice';
+import {
+  modelStarterEntities,
+  gameModeOf,
+  designOf,
+  prefabsOf,
+  generatedAssetsOf,
+  materialsOf,
+  workspaceOf,
+  editorSettingsOf,
+  isModelProject,
+  rowsToScripts,
+} from './projectSettings';
 
-/** Read the 2D/3D kind off a game's settings blob (defaults to 3D). */
-export function gameModeOf(settings: Record<string, unknown> | undefined): GameMode {
-  return settings?.kind === '2d' ? '2d' : '3d';
-}
-
-/** Read the game design doc off a game's settings blob (defaults to empty). The
- *  nested `render` block is deep-merged over defaults so games saved before newer
- *  render fields (e.g. shadow controls) existed still hydrate a complete object. */
-export function designOf(settings: Record<string, unknown> | undefined): GameDesign {
-  const base = emptyDesign();
-  const d = settings?.design as Partial<GameDesign> | undefined;
-  if (!d) return base;
-  return { ...base, ...d, render: { ...base.render, ...(d.render ?? {}) }, studioEnv: { ...base.studioEnv, ...(d.studioEnv ?? {}) } };
-}
-
-/** Read the prefab library off a game's settings blob (defaults to empty). */
-export function prefabsOf(settings: Record<string, unknown> | undefined): Record<string, PrefabDef> {
-  return (settings?.prefabs as Record<string, PrefabDef> | undefined) ?? {};
-}
-
-/** Read project-persisted generated assets (Modeling-Studio objects + their textures) off the
- *  settings blob (defaults to none). */
-export function generatedAssetsOf(settings: Record<string, unknown> | undefined): Asset[] {
-  return (settings?.generatedAssets as Asset[] | undefined) ?? [];
-}
-
-/** Read the saved material presets off a game's settings blob (defaults to empty). */
-export function materialsOf(settings: Record<string, unknown> | undefined): Record<string, MaterialPreset> {
-  return (settings?.materials as Record<string, MaterialPreset> | undefined) ?? {};
-}
-
-/** Read the dockable-workspace layout off a game's settings blob (defaults to fresh). */
-export function workspaceOf(settings: Record<string, unknown> | undefined): Workspace {
-  const w = settings?.workspace as Partial<Workspace> | undefined;
-  return { ...defaultWorkspace(), ...(w ?? {}) };
-}
+// Settings codecs live in ./projectSettings; re-exported here to preserve the import
+// surface (`import { designOf } from '@/store/projectStore'`) used across the app + tests.
+export { gameModeOf, designOf, prefabsOf, generatedAssetsOf, materialsOf, workspaceOf, editorSettingsOf, isModelProject };
 
 type View = 'home' | 'loading' | 'editor' | 'modeler';
 type SnapshotKind = 'auto' | 'manual' | false;
 
-/** True when a game's settings mark it as a 3D-modeling project (not a playable game). */
-export function isModelProject(settings: Record<string, unknown> | undefined): boolean {
-  return settings?.kind === 'model';
-}
-
 const AUTOSAVE_DEBOUNCE = 3500; // ms of inactivity before autosaving
 const AUTO_SNAPSHOT_INTERVAL = 120_000; // min ms between auto revert-snapshots
-
-function rowsToScripts(rows: ScriptRow[]): Record<string, Script> {
-  const out: Record<string, Script> = {};
-  for (const r of rows) {
-    out[r.id] = {
-      id: r.id,
-      name: r.name,
-      mode: r.mode,
-      code: r.code,
-      codeDirty: r.codeDirty,
-      enabled: r.enabled,
-      graph: { nodes: (r.graph?.nodes as never) ?? [], edges: (r.graph?.edges as never) ?? [] },
-    };
-  }
-  return out;
-}
 
 function currentScriptsArray() {
   return Object.values(useEditorStore.getState().scripts);
@@ -250,6 +190,7 @@ export const useProjectStore = hmrSingleton('project', () => create<ProjectState
       useEditorStore.getState().hydratePrefabs(prefabsOf(detail.game.settings));
       useEditorStore.getState().hydrateMaterialPresets(materialsOf(detail.game.settings));
       useEditorStore.getState().hydrateGeneratedAssets(generatedAssetsOf(detail.game.settings));
+      useEditorStore.getState().hydrateEditorPrefs(editorSettingsOf(detail.game.settings));
       // Merge the shared reference library *over* the project's local copies, so reference (proxy)
       // assets resolve to the canonical, latest version before the scene's linked instances re-sync.
       const sharedLibrary = await loadGlobalLibrary();
@@ -343,7 +284,7 @@ export const useProjectStore = hmrSingleton('project', () => create<ProjectState
       // over the last-known blob so we never drop other keys.
       // Models keep their 'model' kind; games store their 2D/3D authoring mode.
       const projectKind = isModelProject(get().gameSettings) ? 'model' : ed.mode;
-      const settings: Record<string, unknown> = { ...get().gameSettings, kind: projectKind, design: ed.design, prefabs: ed.prefabs, materials: ed.materialPresets, workspace: ed.workspace, generatedAssets: ed.assetLibrary.assets.filter((a) => a.source === 'generated') };
+      const settings: Record<string, unknown> = { ...get().gameSettings, kind: projectKind, design: ed.design, prefabs: ed.prefabs, materials: ed.materialPresets, workspace: ed.workspace, editorSettings: ed.editorPrefs, generatedAssets: ed.assetLibrary.assets.filter((a) => a.source === 'generated') };
       // Auto-cover: on the first save with no cover assigned, grab a viewport thumbnail so the
       // home-screen card isn't blank — captured at most once per session, never over an
       // existing cover (see applyAutoCover). Games only auto-capture on autosaves (manual saves
@@ -528,6 +469,7 @@ function genAssetsSig(assets: Asset[]): string {
       s.prefabs !== prev.prefabs ||
       s.materialPresets !== prev.materialPresets ||
       s.workspace !== prev.workspace ||
+      s.editorPrefs !== prev.editorPrefs ||
       s.gameCamera !== prev.gameCamera ||
       s.gridVisible !== prev.gridVisible ||
       (s.assetLibrary !== prev.assetLibrary && genAssetsSig(s.assetLibrary.assets) !== genAssetsSig(prev.assetLibrary.assets))

@@ -1,5 +1,5 @@
 import type { Edge, Node } from '@xyflow/react';
-import type { MaterialConfig, RenderSettings, StudioEnv } from './visuals';
+import type { MaterialConfig, GrassConfig, RenderSettings, StudioEnv } from './visuals';
 import { defaultRenderSettings, defaultStudioEnv } from './visuals';
 import type { VolumeConfig } from './volume';
 import type { SkinData, RigComponent } from './studio';
@@ -132,6 +132,8 @@ export interface MeshConfig {
   material?: MaterialConfig;
   /** Sculptable terrain config — present only when `kind === 'terrain'`. */
   terrain?: TerrainConfig;
+  /** A scattered grass field grown over this mesh's surface (typically terrain). */
+  grass?: GrassConfig;
   /** Baked geometry — present only when `kind === 'custom'` (CSG result). */
   custom?: CustomGeometry;
   /** Skin weights binding this mesh to its entity's rig skeleton (see `Entity.rig`). */

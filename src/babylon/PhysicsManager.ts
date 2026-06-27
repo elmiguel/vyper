@@ -9,7 +9,39 @@ import type { PhysicsBody } from '@babylonjs/core/Physics/v2/physicsBody';
 import '@babylonjs/core/Physics/v2/physicsEngineComponent';
 import type { Scene } from '@babylonjs/core/scene';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
-import { type Entity, type GameMode, isMeshCollidable } from '@/types';
+import { type Entity, type GameMode, type PhysicsConfig, isMeshCollidable } from '@/types';
+
+/** Options accepted by {@link PhysicsManager.ensureBody}. */
+export interface BodyOpts {
+  type?: 'dynamic' | 'static' | 'kinematic' | 'character';
+  shape?: string;
+  mass?: number;
+  restitution?: number;
+  friction?: number;
+}
+
+/** Mesh kinds that are world surfaces you stand on. These are ALWAYS static
+ *  colliders: a dynamic floor falls under gravity, and a jump's contact reaction
+ *  shoves it down — which makes the player appear to launch "up and up" as the
+ *  floor races away. So a dynamic/kinematic type configured on a floor is coerced
+ *  to static here. */
+const FLOOR_KINDS = new Set(['ground', 'plane', 'terrain']);
+
+/**
+ * Resolve the collider options for an entity, or null for "no body". Pure +
+ * unit-testable. Floors are forced static (see {@link FLOOR_KINDS}); other meshes
+ * use their configured physics; meshes with no physics still get an automatic
+ * static collider when they're a floor kind, so players have something to stand on.
+ */
+export function physicsBodyOptsFor(meshKind: string | undefined, physics?: PhysicsConfig): BodyOpts | null {
+  const isFloor = !!meshKind && FLOOR_KINDS.has(meshKind);
+  if (physics?.enabled) {
+    return isFloor ? { ...physics, type: 'static' } : physics;
+  }
+  if (meshKind === 'ground' || meshKind === 'plane') return { type: 'static', shape: 'box' };
+  if (meshKind === 'terrain') return { type: 'static', shape: 'mesh' };
+  return null;
+}
 
 /** Accessors PhysicsManager needs from its owning SceneManager. */
 export interface PhysicsContext {
@@ -64,17 +96,8 @@ export class PhysicsManager {
     for (const e of entities) {
       // A mesh with collision toggled off gets no collider (visible or not).
       if (!e.mesh || !isMeshCollidable(e.mesh)) continue;
-      if (e.physics?.enabled) {
-        this.ensureBody(e.id, e.physics);
-      } else if (e.mesh.kind === 'ground' || e.mesh.kind === 'plane') {
-        // Floors get a static collider automatically so character controllers
-        // (which create their own dynamic body at runtime) have something to
-        // stand on without the user wiring up physics by hand.
-        this.ensureBody(e.id, { type: 'static', shape: 'box' });
-      } else if (e.mesh.kind === 'terrain') {
-        // Terrain uses a static mesh collider so players walk its sculpted surface.
-        this.ensureBody(e.id, { type: 'static', shape: 'mesh' });
-      }
+      const opts = physicsBodyOptsFor(e.mesh.kind, e.physics);
+      if (opts) this.ensureBody(e.id, opts);
     }
   }
 

@@ -4,11 +4,13 @@ import { Inspector } from '@/panels/Inspector';
 import { ScriptEditor } from '@/panels/ScriptEditor';
 import { ConsolePanel } from '@/panels/ConsolePanel';
 import { ModelingTools } from '@/panels/ModelingTools';
+import { GameStylePanel } from '@/panels/GameStylePanel';
+import { EditorSettings } from '@/panels/EditorSettings';
 import { SceneViewport } from '@/babylon/SceneViewport';
 import { GamePreview } from '@/babylon/GamePreview';
 
 /** Stable identifiers for the dockable panels — used as both panel id and component key. */
-export type PanelKey = 'scene' | 'preview' | 'hierarchy' | 'inspector' | 'modeling' | 'scripts' | 'console';
+export type PanelKey = 'scene' | 'preview' | 'hierarchy' | 'inspector' | 'modeling' | 'gameStyle' | 'scripts' | 'console' | 'editorSettings';
 
 /** Title + content component for each dockable panel. The title shows in the dock tab. */
 export const PANELS: Record<PanelKey, { title: string; Component: () => JSX.Element }> = {
@@ -17,8 +19,10 @@ export const PANELS: Record<PanelKey, { title: string; Component: () => JSX.Elem
   hierarchy: { title: 'Hierarchy', Component: Hierarchy },
   inspector: { title: 'Inspector', Component: Inspector },
   modeling: { title: 'Modeling', Component: ModelingTools },
+  gameStyle: { title: 'Game Style', Component: GameStylePanel },
   scripts: { title: 'Scripts', Component: ScriptEditor },
   console: { title: 'Debugger', Component: ConsolePanel },
+  editorSettings: { title: 'Settings', Component: EditorSettings },
 };
 
 export const PANEL_KEYS = Object.keys(PANELS) as PanelKey[];

@@ -39,6 +39,16 @@ describe('desiredMatKind', () => {
     const e = ent({ mesh: { kind: 'box', color: '#fff', visible: true, material: { shading: 'pbr', metallic: 1, roughness: 0.2 } } });
     expect(desiredMatKind(e, '3d')).toBe('pbr');
   });
+
+  it("uses the foliage kind for 'foliage' shading in 3D", () => {
+    const e = ent({ mesh: { kind: 'box', color: '#0f0', visible: true, material: { shading: 'foliage', metallic: 0, roughness: 1 } } });
+    expect(desiredMatKind(e, '3d')).toBe('foliage');
+  });
+
+  it('falls back to flat StandardMaterial for foliage in 2D', () => {
+    const e = ent({ mesh: { kind: 'box', color: '#0f0', visible: true, material: { shading: 'foliage', metallic: 0, roughness: 1 } } });
+    expect(desiredMatKind(e, '2d')).toBe('std');
+  });
 });
 
 describe('syncEntityMaterial double-siding', () => {

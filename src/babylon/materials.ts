@@ -6,18 +6,22 @@ import { Texture } from '@babylonjs/core/Materials/Textures/texture';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import type { Entity, GameMode } from '@/types';
 import { applyEntityMeshMaterial, DEFAULT_LAYER } from './sceneBuilders';
+import { buildFoliageMaterial, applyFoliageConfig } from './foliageMaterial';
 
 /** Which material class a mesh should use right now. */
-export type MatKind = 'pbr' | 'std';
+export type MatKind = 'pbr' | 'std' | 'foliage';
 
 /**
  * The material class a mesh needs: 2D meshes and trigger volumes are always flat
  * StandardMaterial; lit 3D meshes are PBR unless the material opts into
- * `'standard'`. Entities with no material config default to PBR in 3D.
+ * `'standard'` or `'foliage'` (the windy rim-lit grass look). Entities with no
+ * material config default to PBR in 3D.
  */
 export function desiredMatKind(e: Entity, mode: GameMode): MatKind {
   if (mode === '2d' || e.trigger?.enabled) return 'std';
-  return (e.mesh?.material?.shading ?? 'pbr') === 'standard' ? 'std' : 'pbr';
+  const shading = e.mesh?.material?.shading ?? 'pbr';
+  if (shading === 'foliage') return 'foliage';
+  return shading === 'standard' ? 'std' : 'pbr';
 }
 
 /** Assign a texture to a PBR slot, reusing the existing texture when the URL is
@@ -84,9 +88,18 @@ export function syncEntityMaterial(
   const want = desiredMatKind(e, mode);
   if (currentKind !== want || !mesh.material) {
     mesh.material?.dispose();
-    mesh.material = want === 'pbr' ? new PBRMaterial(`${e.id}_mat`, scene) : new StandardMaterial(`${e.id}_mat`, scene);
+    mesh.material =
+      want === 'pbr'
+        ? new PBRMaterial(`${e.id}_mat`, scene)
+        : want === 'foliage'
+          ? buildFoliageMaterial(scene, `${e.id}_mat`)
+          : new StandardMaterial(`${e.id}_mat`, scene);
   }
   if (want === 'pbr') applyPbr(scene, mesh, e);
-  else applyEntityMeshMaterial(mesh, e, mode);
+  else if (want === 'foliage') {
+    mesh.layerMask = DEFAULT_LAYER;
+    mesh.visibility = 1;
+    applyFoliageConfig(mesh.material as PBRMaterial, e.mesh!.color, e.mesh?.material?.foliage);
+  } else applyEntityMeshMaterial(mesh, e, mode);
   return want;
 }

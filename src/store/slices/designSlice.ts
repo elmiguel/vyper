@@ -1,6 +1,7 @@
 import { nanoid } from 'nanoid';
 import type { HudWidget, Objective } from '@/types';
 import { emptyHud, defaultRenderSettings } from '@/types';
+import { LOOK_PRESETS } from '@/presets/lookPresets';
 import { makeHudWidget } from '@/hud/hudAssets';
 import type { EditorState, StoreSet } from '../editorTypes';
 
@@ -11,6 +12,7 @@ type DesignSlice = Pick<
   | 'updateObjective'
   | 'removeObjective'
   | 'updateRenderSettings'
+  | 'applyLookPreset'
   | 'setShowHud'
   | 'selectHudWidget'
   | 'addHudWidget'
@@ -59,9 +61,45 @@ export function createDesignSlice(set: StoreSet): DesignSlice {
     updateRenderSettings: (patch) =>
       set((s) => ({
         // Merge over a complete default base so an in-memory render block persisted
-        // before newer fields existed is back-filled rather than kept partial.
-        design: { ...s.design, render: { ...defaultRenderSettings(), ...(s.design.render ?? {}), ...patch } },
+        // before newer fields existed is back-filled rather than kept partial. A
+        // manual edit makes the look "Custom" — drop the preset id unless the patch
+        // sets one itself (applyLookPreset routes through here with an explicit id).
+        design: {
+          ...s.design,
+          render: {
+            ...defaultRenderSettings(),
+            ...(s.design.render ?? {}),
+            lookPreset: undefined,
+            ...patch,
+          },
+        },
       })),
+
+    // Apply a built-in look preset. Presets are AUTHORITATIVE: the look is built from
+    // defaults + the preset's config, NOT layered over the current settings — so an
+    // effect the user (or a previous preset) had on, e.g. SSAO, is turned back off
+    // when the chosen preset doesn't ask for it. Only scene-specific fields (the IBL
+    // environment + master enable) are preserved, since they aren't part of "the look".
+    applyLookPreset: (id) =>
+      set((s) => {
+        const preset = LOOK_PRESETS[id];
+        if (!preset) return s;
+        const cur = { ...defaultRenderSettings(), ...(s.design.render ?? {}) };
+        return {
+          design: {
+            ...s.design,
+            render: {
+              ...defaultRenderSettings(),
+              enabled: cur.enabled,
+              environmentUrl: cur.environmentUrl,
+              environmentIntensity: cur.environmentIntensity,
+              skybox: cur.skybox,
+              ...preset.config,
+              lookPreset: id,
+            },
+          },
+        };
+      }),
 
     // ----- HUD editor (design.hud) -----
     setShowHud: (v) => set({ showHud: v }),

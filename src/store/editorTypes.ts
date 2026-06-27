@@ -31,6 +31,7 @@ import type {
   VolumeConfig,
 } from '@/types';
 import { type KeymapId } from '@/input/keymaps';
+import type { EditorPrefs, GridPrefs, SelectionPrefs } from './editorPrefs';
 import type { SerializedDockview } from 'dockview';
 
 /** Which mesh component the polygon Edit Mode tool is selecting/operating on. */
@@ -171,6 +172,8 @@ export interface EditorState {
   cameraRevision: number;
   /** Whether the editor grid is visible (editor-only; never in the game view). */
   gridVisible: boolean;
+  /** Per-user editor appearance/UX preferences (localStorage-backed; not part of the game). */
+  editorPrefs: EditorPrefs;
   /** Modeling Studio toggle: when false, the solid surface preview is hidden in
    *  Edit Mode so only the wireframe/component overlays show (editing still works). */
   showSurfaces: boolean;
@@ -326,8 +329,21 @@ export interface EditorState {
   addObjective: () => string;
   updateObjective: (id: string, patch: Partial<Objective>) => void;
   removeObjective: (id: string) => void;
-  /** Patch the scene-wide high-quality rendering settings (3D pipeline/shadows/IBL). */
+  /** Patch the scene-wide high-quality rendering settings (3D pipeline/shadows/IBL).
+   *  A manual patch clears the active look-preset id (the look is now "Custom"). */
   updateRenderSettings: (patch: Partial<RenderSettings>) => void;
+  /** Apply a built-in look preset (Hyperreal Dreamscape etc.): merges the preset's
+   *  render settings over the current ones and records it as the active look. */
+  applyLookPreset: (id: string) => void;
+
+  /** Patch the selection-highlight prefs (inner glow, colors, blur) and persist to localStorage. */
+  updateSelectionPrefs: (patch: Partial<SelectionPrefs>) => void;
+  /** Patch the editor-grid prefs (extent, cell size, color, opacity) and persist to localStorage. */
+  updateGridPrefs: (patch: Partial<GridPrefs>) => void;
+  /** Restore all editor preferences to their built-in defaults. */
+  resetEditorPrefs: () => void;
+  /** Replace editor prefs from a project's saved settings (DB hydration on open). */
+  hydrateEditorPrefs: (prefs: EditorPrefs) => void;
 
   // HUD editor (lives in design.hud, shared across scenes & game modes)
   setShowHud: (v: boolean) => void;

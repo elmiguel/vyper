@@ -16,6 +16,8 @@ import { createPersistenceSlice } from './slices/persistenceSlice';
 import { createWorkspaceSlice, defaultWorkspace } from './slices/workspaceSlice';
 import { createMeshEditSlice } from './slices/meshEditSlice';
 import { createRigSlice } from './slices/rigSlice';
+import { createEditorPrefsSlice } from './slices/editorPrefsSlice';
+import { loadEditorPrefs } from './editorPrefs';
 
 // Re-exported for consumers (e.g. projectStore seeding a fresh scene) and to keep
 // the camera defaults importable from this module as before.
@@ -63,6 +65,7 @@ export const useEditorStore = hmrSingleton('editor', () => create<EditorState>((
   gameCamera: structuredClone(DEFAULT_GAME_CAMERA),
   cameraRevision: 0,
   gridVisible: true,
+  editorPrefs: loadEditorPrefs(),
   showSurfaces: true,
   snapToGrid: false,
   clipboard: null,
@@ -85,4 +88,5 @@ export const useEditorStore = hmrSingleton('editor', () => create<EditorState>((
   ...createWorkspaceSlice(set),
   ...createMeshEditSlice(set, get),
   ...createRigSlice(set, get),
+  ...createEditorPrefsSlice(set),
 })));

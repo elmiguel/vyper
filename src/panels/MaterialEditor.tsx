@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useEditorStore } from '@/store/editorStore';
 import { assetsWithTextures } from '@/assets/deriveTextures';
 import { ASSET_ROOT } from '@/store/slices/assetSlice';
-import { defaultMaterial, type Entity, type MaterialConfig } from '@/types';
+import { defaultMaterial, defaultFoliage, type Entity, type MaterialConfig } from '@/types';
 
 /** A texture option for a map slot: its served URL + a display name. */
 interface TexOption {
@@ -109,8 +109,29 @@ export function MaterialEditor({ entity, disabled }: { entity: Entity; disabled?
         <select value={m.shading} disabled={disabled} onChange={(e) => set({ shading: e.target.value as MaterialConfig['shading'] })}>
           <option value="pbr">PBR (realistic)</option>
           <option value="standard">Standard (flat lit)</option>
+          <option value="foliage">Foliage (wind + rim glow)</option>
         </select>
       </div>
+
+      {m.shading === 'foliage' && (
+        <>
+          {(() => {
+            const f = { ...defaultFoliage(), ...(m.foliage ?? {}) };
+            const setF = (patch: Partial<typeof f>) => set({ foliage: { ...f, ...patch } });
+            return (
+              <>
+                <Slider label="Wind strength" value={f.windStrength} min={0} max={0.5} step={0.01} disabled={disabled} onChange={(v) => setF({ windStrength: v })} />
+                <Slider label="Wind speed" value={f.windSpeed} min={0} max={5} step={0.1} disabled={disabled} onChange={(v) => setF({ windSpeed: v })} />
+                <div className="field">
+                  <span className="field-label">Rim colour</span>
+                  <input type="color" value={f.rimColor} disabled={disabled} onChange={(e) => setF({ rimColor: e.target.value })} />
+                </div>
+                <Slider label="Rim glow" value={f.rimIntensity} min={0} max={2} step={0.05} disabled={disabled} onChange={(v) => setF({ rimIntensity: v })} />
+              </>
+            );
+          })()}
+        </>
+      )}
 
       {m.shading === 'pbr' && (
         <>

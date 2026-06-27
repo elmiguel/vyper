@@ -37,6 +37,8 @@ function buildDefault(api: DockviewApi) {
   add(api, 'hierarchy', { position: { referencePanel: 'scene', direction: 'left' }, initialWidth: 240 });
   add(api, 'inspector', { position: { referencePanel: 'preview', direction: 'right' }, initialWidth: 300 });
   add(api, 'modeling', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'gameStyle', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'editorSettings', { position: { referencePanel: 'inspector', direction: 'within' } });
   add(api, 'scripts', { position: { referencePanel: 'scene', direction: 'below' } });
   add(api, 'console', { position: { referencePanel: 'scripts', direction: 'below' }, initialHeight: 160 });
 }
@@ -47,6 +49,8 @@ function buildSceneFocus(api: DockviewApi) {
   add(api, 'hierarchy', { position: { referencePanel: 'scene', direction: 'right' }, initialWidth: 300 });
   add(api, 'inspector', { position: { referencePanel: 'hierarchy', direction: 'within' } });
   add(api, 'modeling', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'gameStyle', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'editorSettings', { position: { referencePanel: 'inspector', direction: 'within' } });
   add(api, 'preview', { position: { referencePanel: 'scene', direction: 'below' }, initialHeight: 200 });
   add(api, 'scripts', { position: { referencePanel: 'preview', direction: 'within' } });
   add(api, 'console', { position: { referencePanel: 'preview', direction: 'within' } });
@@ -58,6 +62,8 @@ function buildScripting(api: DockviewApi) {
   add(api, 'hierarchy', { position: { referencePanel: 'scripts', direction: 'left' }, initialWidth: 240 });
   add(api, 'inspector', { position: { referencePanel: 'scripts', direction: 'right' }, initialWidth: 300 });
   add(api, 'modeling', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'gameStyle', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'editorSettings', { position: { referencePanel: 'inspector', direction: 'within' } });
   add(api, 'scene', { position: { referencePanel: 'scripts', direction: 'below' }, initialHeight: 240 });
   add(api, 'preview', { position: { referencePanel: 'scene', direction: 'within' } });
   add(api, 'console', { position: { referencePanel: 'scene', direction: 'within' } });
@@ -75,6 +81,8 @@ function buildCompact(api: DockviewApi) {
   add(api, 'hierarchy', { position: { referencePanel: 'scene', direction: 'right' }, initialWidth: 300 });
   add(api, 'inspector', { position: { referencePanel: 'hierarchy', direction: 'within' } });
   add(api, 'modeling', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'gameStyle', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'editorSettings', { position: { referencePanel: 'inspector', direction: 'within' } });
 }
 
 /**
@@ -88,6 +96,8 @@ function buildTabbed(api: DockviewApi) {
   add(api, 'hierarchy', { position: { referencePanel: 'scene', direction: 'right' }, initialWidth: 300 });
   add(api, 'inspector', { position: { referencePanel: 'hierarchy', direction: 'within' } });
   add(api, 'modeling', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'gameStyle', { position: { referencePanel: 'inspector', direction: 'within' } });
+  add(api, 'editorSettings', { position: { referencePanel: 'inspector', direction: 'within' } });
   add(api, 'preview', { position: { referencePanel: 'scene', direction: 'within' } });
   add(api, 'scripts', { position: { referencePanel: 'scene', direction: 'below' }, initialHeight: 200 });
   add(api, 'console', { position: { referencePanel: 'scripts', direction: 'within' } });

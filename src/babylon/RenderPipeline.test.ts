@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { NullEngine } from '@babylonjs/core/Engines/nullEngine';
+import { Scene } from '@babylonjs/core/scene';
+import { FreeCamera } from '@babylonjs/core/Cameras/freeCamera';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector';
+import { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
 import { defaultRenderSettings, type RenderSettings } from '@/types';
-import { castsShadows, shadowParamsFrom } from './RenderPipeline';
+import { castsShadows, shadowParamsFrom, colorCurvesFrom, configureDefaultPipeline } from './RenderPipeline';
 
 describe('castsShadows', () => {
   it('directional, point and spot lights cast shadows', () => {
@@ -13,6 +18,85 @@ describe('castsShadows', () => {
     expect(castsShadows('HemisphericLight')).toBe(false);
     expect(castsShadows(undefined)).toBe(false);
     expect(castsShadows('Light')).toBe(false);
+  });
+});
+
+describe('configureDefaultPipeline', () => {
+  const make = () => {
+    const engine = new NullEngine();
+    const scene = new Scene(engine);
+    const cam = new FreeCamera('c', new Vector3(0, 0, -5), scene);
+    const pipeline = new DefaultRenderingPipeline('t', true, scene, [cam]);
+    return { engine, scene, pipeline };
+  };
+
+  // Regression: the chromatic-aberration / sharpen / DOF post-processes are null
+  // while disabled, so their sub-properties must only be set when enabled — else
+  // applying the DEFAULT settings (all three off) throws and blanks the viewport.
+  it('does not throw when lens effects are disabled (the defaults)', () => {
+    const { engine, scene, pipeline } = make();
+    expect(() => configureDefaultPipeline(pipeline, defaultRenderSettings())).not.toThrow();
+    scene.dispose();
+    engine.dispose();
+  });
+
+  it('does not throw when lens effects are enabled', () => {
+    const { engine, scene, pipeline } = make();
+    const s: RenderSettings = { ...defaultRenderSettings(), chromaticAberration: true, sharpen: true, dof: true };
+    expect(() => configureDefaultPipeline(pipeline, s)).not.toThrow();
+    expect(pipeline.chromaticAberrationEnabled).toBe(true);
+    expect(pipeline.depthOfFieldEnabled).toBe(true);
+    scene.dispose();
+    engine.dispose();
+  });
+
+  it('applies the colour grade after the chain toggles (not left enabled-but-unbound)', () => {
+    const { engine, scene, pipeline } = make();
+    // Lens toggles trigger pipeline rebuilds; the grade must survive them.
+    configureDefaultPipeline(pipeline, { ...defaultRenderSettings(), saturation: 80, chromaticAberration: true, sharpen: true, dof: true });
+    expect(pipeline.imageProcessing.colorCurvesEnabled).toBe(true);
+    expect(pipeline.imageProcessing.colorCurves?.globalSaturation).toBe(80);
+    scene.dispose();
+    engine.dispose();
+  });
+
+  it('wires film-grain and vignette strength', () => {
+    const { engine, scene, pipeline } = make();
+    configureDefaultPipeline(pipeline, { ...defaultRenderSettings(), grain: true, grainIntensity: 22, vignette: true, vignetteWeight: 3 });
+    expect(pipeline.grainEnabled).toBe(true);
+    expect(pipeline.grain.intensity).toBe(22);
+    expect(pipeline.imageProcessing.vignetteWeight).toBe(3);
+    scene.dispose();
+    engine.dispose();
+  });
+});
+
+describe('colorCurvesFrom', () => {
+  const s = (over: Partial<RenderSettings>): RenderSettings => ({ ...defaultRenderSettings(), ...over });
+
+  it('passes global saturation through (clamped to ±100)', () => {
+    expect(colorCurvesFrom(s({ saturation: 40 })).globalSaturation).toBe(40);
+    expect(colorCurvesFrom(s({ saturation: 250 })).globalSaturation).toBe(100);
+    expect(colorCurvesFrom(s({ saturation: -250 })).globalSaturation).toBe(-100);
+  });
+
+  it('leaves split-tone hues untouched at warmth 0', () => {
+    const cc = colorCurvesFrom(s({ warmth: 0 }));
+    expect(cc.highlightsSaturation).toBe(0);
+    expect(cc.shadowsSaturation).toBe(0);
+  });
+
+  it('warm highlights + cool shadows when warmth is positive', () => {
+    const cc = colorCurvesFrom(s({ warmth: 1 }));
+    expect(cc.highlightsHue).toBeLessThan(90); // warm/orange
+    expect(cc.shadowsHue).toBeGreaterThan(180); // cool/blue
+    expect(cc.highlightsSaturation).toBeGreaterThan(0);
+  });
+
+  it('reverses the split when warmth is negative', () => {
+    const cc = colorCurvesFrom(s({ warmth: -1 }));
+    expect(cc.highlightsHue).toBeGreaterThan(180); // cool highlights
+    expect(cc.shadowsHue).toBeLessThan(90); // warm shadows
   });
 });
 

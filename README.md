@@ -131,6 +131,12 @@ A sleek, fully resizable multi-view workspace:
   (surface) and **Collision** are independent toggles, so an object can be
   invisible yet still collide/trigger (an invisible wall), or visible yet
   pass-through.
+- **Settings** — editor appearance preferences, saved **per-project** in the
+  game's settings blob (DB) and mirrored to `localStorage` as the cross-project
+  default. Categorized: **Selection & Highlight** (inner-glow fill on/off,
+  selection + camera-helper colors, glow softness, and overlay opacity so the
+  object's texture shows through the highlight) and **Grid** (visibility, cell
+  size, extent, color, opacity).
 
 ## Node ↔ Script round-trip (bi-directional)
 

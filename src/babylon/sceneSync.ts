@@ -9,6 +9,8 @@ import { syncEntityMaterial, type MatKind } from './materials';
 import { applyHeightsToMesh } from './terrainMesh';
 import { syncModelEntity, type ModelContext } from './modelLoader';
 import { buildSpawnerBillboard } from './spawnerBillboard';
+import { buildGrass, grassKeyFor } from './grassSystem';
+import { gameConsole } from '@/store/consoleStore';
 
 /** Per-entity Babylon objects the SceneManager tracks between syncs. */
 export interface Tracked {
@@ -24,6 +26,10 @@ export interface Tracked {
   modelAssetId?: string;
   /** True while the model is being loaded/instantiated (guards double-loads). */
   modelLoading?: boolean;
+  /** The scattered grass field grown over `mesh` (parented to it), if any. */
+  grass?: AbstractMesh;
+  /** Grass config/terrain signature — rebuild the field only when it changes. */
+  grassKey?: string;
 }
 
 /** What `reconcileEntities` needs from the SceneManager. */
@@ -60,6 +66,27 @@ export function reconcileEntities(ctx: SyncContext, entities: Entity[], opts: { 
       tracked.set(e.id, t);
     }
 
+    // Isolate each entity: a failure building/syncing one (e.g. a material that
+    // can't initialize) must not abort the loop and leave every later entity
+    // un-synced. Log it and move on.
+    try {
+      syncOneEntity(scene, t, e, mode, opts, ctx);
+    } catch (err) {
+      gameConsole.error('sceneSync', `Failed to sync "${e.name ?? e.id}":`, err);
+    }
+  }
+}
+
+/** Reconcile a single entity's mesh/spawner/material/light. Throwing here is caught
+ *  by the caller so one bad entity can't break the rest of the scene sync. */
+function syncOneEntity(
+  scene: Scene,
+  t: Tracked,
+  e: Entity,
+  mode: GameMode,
+  opts: { skipTransforms?: boolean },
+  ctx: SyncContext,
+): void {
     if (e.mesh) {
       if (e.mesh.kind === 'model') {
         syncModelEntity(ctx.modelCtx(), t, e, opts);
@@ -69,6 +96,9 @@ export function reconcileEntities(ctx: SyncContext, entities: Entity[], opts: { 
         const terrain = e.mesh.kind === 'terrain' ? e.mesh.terrain ?? defaultTerrain() : null;
         const terrainKey = terrain ? `${terrain.size}:${terrain.subdivisions}` : undefined;
         if (!t.mesh || t.meshKind !== e.mesh.kind || (terrainKey && t.terrainKey !== terrainKey)) {
+          t.grass?.dispose();
+          t.grass = undefined;
+          t.grassKey = undefined;
           t.mesh?.dispose();
           t.mesh = buildMesh(scene, e);
           t.meshKind = e.mesh.kind;
@@ -79,6 +109,7 @@ export function reconcileEntities(ctx: SyncContext, entities: Entity[], opts: { 
           applyHeightsToMesh(t.mesh as Mesh, terrain);
         }
         t.matKind = syncEntityMaterial(scene, t.mesh, e, mode, t.matKind);
+        syncGrass(scene, t, e);
         // `visible` toggles rendering only (isVisible), keeping hidden meshes
         // collidable; setEnabled(true) undoes a runtime setActive(false).
         t.mesh.setEnabled(true);
@@ -101,11 +132,26 @@ export function reconcileEntities(ctx: SyncContext, entities: Entity[], opts: { 
         t.mesh.scaling.set(e.transform.scale.x, e.transform.scale.y, e.transform.scale.z);
       }
     } else if (t.mesh) {
+      t.grass?.dispose();
+      t.grass = undefined;
+      t.grassKey = undefined;
       t.mesh.dispose();
       t.mesh = undefined;
       t.meshKind = undefined;
     }
 
     reconcileEntityLight(scene, t, e);
-  }
+}
+
+/** (Re)build or remove the entity's grass field. The field rebuilds only when its
+ *  config/terrain signature changes (grassKeyFor), and is parented to the host mesh
+ *  so it tracks the host's transform. */
+function syncGrass(scene: Scene, t: Tracked, e: Entity): void {
+  if (!t.mesh) return;
+  const key = grassKeyFor(e);
+  if (key === t.grassKey) return;
+  t.grass?.dispose();
+  t.grass = key ? buildGrass(scene, t.mesh, e) ?? undefined : undefined;
+  if (t.grass) t.grass.parent = t.mesh;
+  t.grassKey = key ?? undefined;
 }

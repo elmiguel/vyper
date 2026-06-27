@@ -59,9 +59,21 @@ export function buildMesh(scene: Scene, e: Entity): AbstractMesh {
 /** Editor grid: a line system of evenly spaced lines forming square (quad) cells —
  *  not a wireframe ground (which triangulates each cell with a diagonal). Built in
  *  the XZ plane for 3D and the XY plane for 2D. One mesh, so setEnabled toggles it. */
-export function createGrid(scene: Scene, mode: GameMode): AbstractMesh {
-  const HALF = 20; // grid extends ±20 units
-  const STEP = 1; // 1-unit cells
+/** Appearance options for the editor grid; omitted fields fall back to the defaults below. */
+export interface GridOptions {
+  /** Half-extent in world units — grid spans ±extent. */
+  extent?: number;
+  /** Cell size in world units (line spacing). */
+  cellSize?: number;
+  /** Line color (hex). */
+  color?: string;
+  /** Line opacity 0–1. */
+  opacity?: number;
+}
+
+export function createGrid(scene: Scene, mode: GameMode, opts: GridOptions = {}): AbstractMesh {
+  const HALF = opts.extent ?? 20; // grid extends ±HALF units
+  const STEP = opts.cellSize && opts.cellSize > 0 ? opts.cellSize : 1; // cell size (guard ≤0)
   // Map a 2D coordinate onto the grid plane for the current mode.
   const pt = (a: number, b: number) => (mode === '2d' ? new Vector3(a, b, 0) : new Vector3(a, 0, b));
   const lines: Vector3[][] = [];
@@ -70,7 +82,8 @@ export function createGrid(scene: Scene, mode: GameMode): AbstractMesh {
     lines.push([pt(-HALF, i), pt(HALF, i)]); // lines along the first axis
   }
   const grid = MeshBuilder.CreateLineSystem('__grid', { lines }, scene) as LinesMesh;
-  grid.color = new Color3(0.18, 0.12, 0.34);
+  grid.color = Color3.FromHexString(opts.color ?? '#2e1f57');
+  grid.alpha = opts.opacity ?? 1;
   grid.isPickable = false;
   // Nudge off the object plane so coincident geometry doesn't z-fight the grid.
   if (mode === '2d') grid.position.z = 0.001;

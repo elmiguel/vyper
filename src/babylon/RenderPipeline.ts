@@ -4,17 +4,25 @@ import type { Light } from '@babylonjs/core/Lights/light';
 import type { IShadowLight } from '@babylonjs/core/Lights/shadowLight';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
 import { Color4 } from '@babylonjs/core/Maths/math.color';
+import type { Vector3 } from '@babylonjs/core/Maths/math.vector';
 import { DefaultRenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline';
 import { SSAO2RenderingPipeline } from '@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/ssao2RenderingPipeline';
+import { DepthOfFieldEffectBlurLevel } from '@babylonjs/core/PostProcesses/depthOfFieldEffect';
+import { VolumetricLightScatteringPostProcess } from '@babylonjs/core/PostProcesses/volumetricLightScatteringPostProcess';
 import { ImageProcessingConfiguration } from '@babylonjs/core/Materials/imageProcessingConfiguration';
+import { ColorCurves } from '@babylonjs/core/Materials/colorCurves';
 import { ShadowGenerator } from '@babylonjs/core/Lights/Shadows/shadowGenerator';
 import { CubeTexture } from '@babylonjs/core/Materials/Textures/cubeTexture';
 import { HDRCubeTexture } from '@babylonjs/core/Materials/Textures/hdrCubeTexture';
 import type { BaseTexture } from '@babylonjs/core/Materials/Textures/baseTexture';
+import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 // Side effects required by the tree-shaken core build.
 import '@babylonjs/core/Lights/Shadows/shadowGeneratorSceneComponent';
 import '@babylonjs/core/Rendering/prePassRendererSceneComponent';
 import '@babylonjs/core/Rendering/geometryBufferRendererSceneComponent';
+// Depth-of-field's circle-of-confusion needs a scene depth texture; without the
+// prepass it falls back to scene.enableDepthRenderer(), which this registers.
+import '@babylonjs/core/Rendering/depthRendererSceneComponent';
 
 import type { RenderSettings } from '@/types';
 import { defaultRenderSettings } from '@/types';
@@ -87,6 +95,98 @@ const TONE_MAP: Record<RenderSettings['tone'], number> = {
   aces: ImageProcessingConfiguration.TONEMAPPING_ACES,
 };
 
+const DOF_BLUR: Record<RenderSettings['dofBlur'], DepthOfFieldEffectBlurLevel> = {
+  low: DepthOfFieldEffectBlurLevel.Low,
+  medium: DepthOfFieldEffectBlurLevel.Medium,
+  high: DepthOfFieldEffectBlurLevel.High,
+};
+
+const clampSym = (v: number, lim: number) => (v < -lim ? -lim : v > lim ? lim : v);
+
+/**
+ * Build an image-processing ColorCurves from the grade settings. Pure (no live
+ * Babylon state) so it's unit-testable. `saturation` drives global saturation;
+ * `warmth` (-1…1) applies a complementary split-tone — warm highlights + cool
+ * "blue" shadows when positive, the reverse when negative — the teal-and-orange
+ * cinematic look. A warmth of 0 leaves hue/shadow tinting untouched.
+ */
+/** Populate a ColorCurves from the grade settings (mutates `cc`). All fields are set
+ *  every call — including resetting the split-tone to 0 when warmth is 0 — so going
+ *  from a tinted look back to neutral fully clears the tint. */
+function populateColorCurves(cc: ColorCurves, s: RenderSettings): ColorCurves {
+  cc.globalSaturation = clampSym(s.saturation, 100);
+  const w = clampSym(s.warmth, 1);
+  const warmHue = 32; // orange
+  const coolHue = 210; // blue
+  const sat = Math.abs(w) * 45;
+  cc.highlightsHue = w >= 0 ? warmHue : coolHue;
+  cc.highlightsSaturation = w === 0 ? 0 : sat;
+  cc.shadowsHue = w >= 0 ? coolHue : warmHue;
+  cc.shadowsSaturation = w === 0 ? 0 : sat;
+  return cc;
+}
+
+export function colorCurvesFrom(s: RenderSettings): ColorCurves {
+  return populateColorCurves(new ColorCurves(), s);
+}
+
+/**
+ * Apply every per-camera DefaultRenderingPipeline effect from the settings. Shared
+ * by the live scene pipeline and the Game-Style preview pipelines (one per preset
+ * card) so both render an identical grade. Assumes `s.enabled` is already true.
+ */
+export function configureDefaultPipeline(p: DefaultRenderingPipeline, s: RenderSettings): void {
+  // ── ORDER MATTERS ──
+  // Each `*Enabled` flag and `samples` setter calls the pipeline's _buildPipeline(),
+  // which rebuilds the post-process chain. If the image-processing grade (tone map,
+  // colour curves) is configured BEFORE those toggles, a subsequent rebuild leaves
+  // it enabled-but-unbound — which renders the whole frame GRAYSCALE until something
+  // forces another rebuild (e.g. toggling grain). So: do every rebuild-triggering
+  // toggle FIRST, then configure image processing LAST, where nothing can clobber it.
+
+  // 1) MSAA + chain toggles. (bloom/grain/chromaticAberration are always allocated;
+  //    sharpen/DOF objects exist once their flag is on — set sub-params after.)
+  p.samples = 4; // 4× MSAA — FXAA alone leaves crawling edges on a sharp PBR scene.
+  p.imageProcessingEnabled = true;
+  p.bloomEnabled = s.bloom;
+  p.fxaaEnabled = s.fxaa;
+  p.grainEnabled = s.grain;
+  p.chromaticAberrationEnabled = s.chromaticAberration;
+  p.sharpenEnabled = s.sharpen;
+  p.depthOfFieldEnabled = s.dof;
+
+  // 2) Per-effect parameters (the post-process objects now exist for what's enabled).
+  p.bloomWeight = s.bloomIntensity;
+  if (s.grain) p.grain.intensity = s.grainIntensity;
+  if (s.chromaticAberration) {
+    p.chromaticAberration.aberrationAmount = s.chromaticAberrationAmount;
+    p.chromaticAberration.radialIntensity = 1.2;
+  }
+  if (s.sharpen) p.sharpen.edgeAmount = s.sharpenAmount;
+  if (s.dof) {
+    p.depthOfFieldBlurLevel = DOF_BLUR[s.dofBlur];
+    p.depthOfField.focusDistance = s.dofFocusDistance;
+    p.depthOfField.fStop = s.dofFStop;
+    p.depthOfField.focalLength = s.dofFocalLength;
+  }
+
+  // 3) Image processing LAST. These set values / recompile only the image-processing
+  //    pass (not a full chain rebuild), so the grade can't be wiped after this point.
+  const ip = p.imageProcessing;
+  ip.toneMappingEnabled = s.tone !== 'none';
+  ip.toneMappingType = TONE_MAP[s.tone];
+  ip.exposure = s.exposure;
+  ip.contrast = s.contrast;
+  ip.vignetteEnabled = s.vignette;
+  ip.vignetteWeight = s.vignetteWeight;
+  // Reuse + mutate the existing ColorCurves so the already-bound object updates in
+  // place (a fresh object each call risks the post-process binding a stale one).
+  const cc = ip.colorCurves ?? new ColorCurves();
+  populateColorCurves(cc, s);
+  ip.colorCurves = cc;
+  ip.colorCurvesEnabled = true;
+}
+
 /**
  * Owns the scene-wide post-processing pipeline (tone mapping, bloom, FXAA,
  * SSAO, vignette/grain), dynamic shadows, and the IBL environment for a 3D
@@ -97,6 +197,7 @@ export class RenderPipeline {
   private pipeline?: DefaultRenderingPipeline;
   private ssao?: SSAO2RenderingPipeline;
   private shadows = new ShadowController();
+  private godRays: GodRayController;
   private environment?: BaseTexture;
   private skybox?: AbstractMesh;
   private lastEnvUrl = '';
@@ -104,19 +205,23 @@ export class RenderPipeline {
   constructor(
     private readonly scene: Scene,
     private readonly cameras: Camera[],
-  ) {}
+  ) {
+    this.godRays = new GodRayController(scene, cameras);
+  }
 
   /** Reconcile every effect with the current settings. Cheap to call repeatedly. */
   apply(s: RenderSettings) {
     if (!s.enabled) {
       this.teardownPostProcessing();
       this.shadows.setConfig(s, false);
+      this.godRays.setConfig(s, false);
       void this.applyEnvironment('', s);
       return;
     }
     this.applyDefaultPipeline(s);
     this.applySsao(s);
     this.shadows.setConfig(s);
+    this.godRays.setConfig(s);
     void this.applyEnvironment(s.environmentUrl, s);
   }
 
@@ -134,9 +239,13 @@ export class RenderPipeline {
       p.bloomEnabled = muted ? false : s.bloom;
       p.grainEnabled = muted ? false : s.grain;
       p.fxaaEnabled = muted ? false : s.fxaa;
+      p.chromaticAberrationEnabled = muted ? false : s.chromaticAberration;
+      p.sharpenEnabled = muted ? false : s.sharpen;
+      p.depthOfFieldEnabled = muted ? false : s.dof;
       const ip = p.imageProcessing;
       ip.toneMappingEnabled = muted ? false : s.tone !== 'none';
       ip.vignetteEnabled = muted ? false : s.vignette;
+      ip.colorCurvesEnabled = !muted;
       ip.exposure = muted ? 1 : s.exposure;
       ip.contrast = muted ? 1 : s.contrast;
     }
@@ -147,21 +256,7 @@ export class RenderPipeline {
     if (!this.pipeline) {
       this.pipeline = new DefaultRenderingPipeline('hq', true, this.scene, this.cameras);
     }
-    const p = this.pipeline;
-    p.imageProcessingEnabled = true;
-    const ip = p.imageProcessing;
-    ip.toneMappingEnabled = s.tone !== 'none';
-    ip.toneMappingType = TONE_MAP[s.tone];
-    ip.exposure = s.exposure;
-    ip.contrast = s.contrast;
-    ip.vignetteEnabled = s.vignette;
-    p.bloomEnabled = s.bloom;
-    p.bloomWeight = s.bloomIntensity;
-    p.fxaaEnabled = s.fxaa;
-    p.grainEnabled = s.grain;
-    // 4× MSAA for clean geometry edges, always — FXAA alone leaves crawling edges
-    // that read as "gritty" on a sharp PBR scene.
-    p.samples = 4;
+    configureDefaultPipeline(this.pipeline, s);
   }
 
   private applySsao(s: RenderSettings) {
@@ -221,6 +316,9 @@ export class RenderPipeline {
   syncShadows(slots: Iterable<ShadowSlot>) {
     const { lights, casters } = collectShadowTargets(slots);
     this.shadows.sync(lights, casters);
+    // God rays radiate from the scene's directional light; refresh the source
+    // position whenever the lights change (the light may have moved/rotated).
+    this.godRays.setSunLight(lights.find((l) => l.getClassName() === 'DirectionalLight'));
   }
 
   /** Shadows re-render every frame while playing (moving objects) and on-demand
@@ -246,8 +344,90 @@ export class RenderPipeline {
   dispose() {
     this.teardownPostProcessing();
     this.shadows.dispose();
+    this.godRays.dispose();
     this.environment?.dispose();
     this.skybox?.dispose();
+  }
+}
+
+/**
+ * Owns the volumetric light-scattering ("god ray") post-process. One VLS instance
+ * is attached per camera (they cannot be shared), all pointing at a single shared
+ * emissive "sun" billboard placed far along the directional light's reverse
+ * direction. A no-op until both god rays are enabled AND the scene has a
+ * directional light; reconciles whenever either input changes.
+ */
+class GodRayController {
+  private vls = new Map<Camera, VolumetricLightScatteringPostProcess>();
+  private sun?: Mesh;
+  private light?: IShadowLight;
+  private enabled = false;
+  private intensity = 0.6;
+  /** Distance to push the sun billboard along the light's reverse direction. */
+  private static readonly SUN_DISTANCE = 400;
+
+  constructor(
+    private readonly scene: Scene,
+    private readonly cameras: Camera[],
+  ) {}
+
+  setConfig(s: RenderSettings, enabled = s.godRays) {
+    this.enabled = enabled;
+    this.intensity = s.godRaysIntensity;
+    this.reconcile();
+  }
+
+  setSunLight(light: Light | undefined) {
+    this.light = light as IShadowLight | undefined;
+    this.reconcile();
+  }
+
+  private reconcile() {
+    if (!this.enabled || !this.light) {
+      this.teardown();
+      return;
+    }
+    if (!this.sun) {
+      // `null` mesh → VLS builds its default emissive billboard; reuse the first
+      // one as the shared sun and feed it to the other cameras.
+      const first = this.cameras[0];
+      const vls = new VolumetricLightScatteringPostProcess('godrays', 1, first, undefined, 80, undefined, this.scene.getEngine());
+      this.sun = vls.mesh as Mesh;
+      this.sun.isPickable = false;
+      this.sun.layerMask = DEFAULT_LAYER;
+      this.vls.set(first, vls);
+      for (const cam of this.cameras.slice(1)) {
+        this.vls.set(cam, new VolumetricLightScatteringPostProcess('godrays', 1, cam, this.sun, 80, undefined, this.scene.getEngine()));
+      }
+    }
+    this.positionSun();
+    for (const vls of this.vls.values()) {
+      vls.exposure = 0.3 * this.intensity;
+      vls.weight = 0.5 * this.intensity;
+      vls.decay = 0.96815;
+      vls.density = 0.926;
+    }
+  }
+
+  /** Place the sun billboard far along the light's reverse direction (toward the
+   *  source), so the rays appear to emanate from where the light comes from. */
+  private positionSun() {
+    if (!this.sun || !this.light) return;
+    const dir = (this.light as unknown as { direction?: Vector3 }).direction;
+    if (dir) {
+      this.sun.position = dir.normalizeToNew().scale(-GodRayController.SUN_DISTANCE);
+    }
+  }
+
+  private teardown() {
+    for (const [cam, vls] of this.vls) vls.dispose(cam);
+    this.vls.clear();
+    this.sun?.dispose();
+    this.sun = undefined;
+  }
+
+  dispose() {
+    this.teardown();
   }
 }
 

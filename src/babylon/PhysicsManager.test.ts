@@ -17,7 +17,36 @@ vi.mock('@babylonjs/core/Physics/v2/physicsAggregate', () => ({
   }),
 }));
 
-import { PhysicsManager } from './PhysicsManager';
+import { PhysicsManager, physicsBodyOptsFor } from './PhysicsManager';
+import type { PhysicsConfig } from '@/types';
+
+describe('physicsBodyOptsFor — floors are always static', () => {
+  const dyn: PhysicsConfig = { enabled: true, type: 'dynamic', mass: 1, restitution: 0.2, friction: 0.6, shape: 'auto' as never };
+
+  it('coerces a configured-dynamic floor (ground/plane/terrain) to static', () => {
+    // The "player launches up" bug: a dynamic floor falls + kicks the player up.
+    expect(physicsBodyOptsFor('ground', dyn)?.type).toBe('static');
+    expect(physicsBodyOptsFor('plane', dyn)?.type).toBe('static');
+    expect(physicsBodyOptsFor('terrain', dyn)?.type).toBe('static');
+    // The rest of the config (mass/friction/shape) is preserved.
+    expect(physicsBodyOptsFor('ground', dyn)?.friction).toBe(0.6);
+  });
+
+  it('leaves non-floor meshes dynamic when configured so', () => {
+    expect(physicsBodyOptsFor('box', dyn)?.type).toBe('dynamic');
+    expect(physicsBodyOptsFor('sphere', dyn)?.type).toBe('dynamic');
+  });
+
+  it('auto-creates a static collider for floors with no physics configured', () => {
+    expect(physicsBodyOptsFor('ground', undefined)).toEqual({ type: 'static', shape: 'box' });
+    expect(physicsBodyOptsFor('terrain', undefined)).toEqual({ type: 'static', shape: 'mesh' });
+  });
+
+  it('gives a non-floor mesh with no physics no body', () => {
+    expect(physicsBodyOptsFor('box', undefined)).toBeNull();
+    expect(physicsBodyOptsFor('box', { ...dyn, enabled: false })).toBeNull();
+  });
+});
 
 /** A fake scene that records physics-engine lifecycle calls. */
 function makeScene() {

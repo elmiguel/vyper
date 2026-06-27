@@ -1,29 +1,7 @@
 import { useEditorStore } from '@/store/editorStore';
 import { defaultRenderSettings, type RenderSettings as RS } from '@/types';
 import { EnvironmentIBL } from './EnvironmentIBL';
-
-/** A labelled checkbox row, matching the Inspector's `.field check` style. */
-function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="field check">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      {label}
-    </label>
-  );
-}
-
-/** A labelled range slider with a numeric read-out, matching `.field`. */
-function Slider({
-  label, value, min, max, step, onChange,
-}: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void }) {
-  return (
-    <div className="field">
-      <span className="field-label">{label}</span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} />
-      <span className="field-val">{value.toFixed(step < 0.01 ? 4 : 2)}</span>
-    </div>
-  );
-}
+import { Check, Slider } from './controls';
 
 /**
  * Scene-wide high-quality rendering controls (3D only): the post-processing
@@ -87,7 +65,13 @@ export function RenderSettings() {
               <Slider label="AO strength" value={render.ssaoIntensity} min={0} max={2} step={0.05} onChange={(v) => set({ ssaoIntensity: v })} />
             )}
             <Check label="Vignette" checked={render.vignette} onChange={(v) => set({ vignette: v })} />
+            {render.vignette && (
+              <Slider label="Vignette amt" value={render.vignetteWeight} min={0} max={5} step={0.1} onChange={(v) => set({ vignetteWeight: v })} />
+            )}
             <Check label="Film grain" checked={render.grain} onChange={(v) => set({ grain: v })} />
+            {render.grain && (
+              <Slider label="Grain amt" value={render.grainIntensity} min={0} max={50} step={1} onChange={(v) => set({ grainIntensity: v })} />
+            )}
           </section>
 
           <section>

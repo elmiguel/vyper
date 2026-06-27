@@ -63,6 +63,8 @@ export function acquireEngine(canvas: HTMLCanvasElement): SceneManager {
   manager.setSnapping(store.getState().snapToGrid);
   manager.applyRenderSettings(store.getState().design.render);
   manager.setEditorEffects(store.getState().editorEffects);
+  manager.applySelectionPrefs(store.getState().editorPrefs.selection);
+  manager.applyGridPrefs(store.getState().editorPrefs.grid);
   // Committed sculpt strokes persist as a terrain edit (undoable as one step).
   manager.setOnSculptCommit((id, heights) => store.getState().updateTerrain(id, { heights }));
   // Polygon Edit Mode: geometry commits persist as a custom-mesh edit; the controller
@@ -119,6 +121,20 @@ export function acquireEngine(canvas: HTMLCanvasElement): SceneManager {
         lastEffects = s.editorEffects;
         manager!.setEditorEffects(s.editorEffects);
       }
+    }),
+  );
+
+  // Editor appearance prefs (selection highlight + grid). Each sub-object gets a fresh
+  // reference only when that category changes, so we re-apply selectively — a color tweak
+  // doesn't trigger a (more expensive) grid rebuild and vice-versa.
+  let lastPrefs = store.getState().editorPrefs;
+  unsubscribers.push(
+    store.subscribe((s) => {
+      if (s.editorPrefs === lastPrefs) return;
+      const prev = lastPrefs;
+      lastPrefs = s.editorPrefs;
+      if (s.editorPrefs.selection !== prev.selection) manager!.applySelectionPrefs(s.editorPrefs.selection);
+      if (s.editorPrefs.grid !== prev.grid) manager!.applyGridPrefs(s.editorPrefs.grid);
     }),
   );
 
