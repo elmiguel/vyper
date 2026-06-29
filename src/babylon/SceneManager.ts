@@ -2,7 +2,7 @@ import { Engine } from '@babylonjs/core/Engines/engine';
 import { Scene } from '@babylonjs/core/scene';
 import { ArcRotateCamera } from '@babylonjs/core/Cameras/arcRotateCamera';
 import { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
-import { Vector3, Color4 } from '@babylonjs/core/Maths/math';
+import { Vector3 } from '@babylonjs/core/Maths/math';
 import type { PhysicsBody } from '@babylonjs/core/Physics/v2/physicsBody';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import type { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh';
@@ -23,8 +23,7 @@ import { PhysicsManager } from './PhysicsManager';
 import { applyEditorRenderGating } from './sceneViewHelpers';
 import * as ops from './runtimeEntityOps';
 import type { RuntimeOpsCtx } from './runtimeEntityOps';
-import { SpawnPool } from '../runtime/SpawnPool';
-import { createSpawnInstance, placeSpawnInstance } from './spawnerRuntimeOps';
+import type { SpawnPool } from '../runtime/SpawnPool';
 import { syncEntityMaterial, type MatKind } from './materials';
 import { SculptController } from './SculptController';
 import { MeshEditController } from './MeshEditController';
@@ -32,7 +31,6 @@ import { RigController } from './RigController';
 import { RigPlayer, type ClipPlayRequest } from './RigPlayer';
 import { reconcileEntities, type Tracked } from './sceneSync';
 import { bakeBoolean } from './csg';
-import { hardwareScalingLevelFor } from './viewResize';
 import { ModelLoader, loadModelInto, type ModelContext } from './modelLoader';
 import { EffectsManager } from './EffectsManager';
 import { createEditorCamera, createGameCamera, setupEditorPanControls, applyGameCameraTransform } from './cameraRig';
@@ -43,9 +41,9 @@ import {
   applyTransform,
   GAME_CAMERA_ID,
 } from './sceneBuilders';
-import { gameConsole } from '@/store/consoleStore';
 import { SelectionController } from './SelectionController';
 import { RenderController } from './RenderController';
+import { createSceneCore, createSpawnPool, registerSpawners } from './sceneBootstrap';
 import type { SelectionPrefs, GridPrefs } from '@/store/editorPrefs';
 
 export class SceneManager {
@@ -61,19 +59,8 @@ export class SceneManager {
   private selection: SelectionController;
   private tracked = new Map<string, Tracked>();
   private snapshot = new Map<string, Entity['transform']>();
-  /** Runtime two-pool spawn queue (Spawner feature). Empty until Play registers spawners; the
-   *  Babylon glue (clone/place/hide/dispose) is wired here, the queue logic lives in SpawnPool. */
-  private readonly spawnPool = new SpawnPool({
-    createInstance: (targetId, instanceId) =>
-      createSpawnInstance({ tracked: this.tracked, scene: this.scene }, targetId, instanceId),
-    setInstanceActive: (id, on) => this.setEntityActive(id, on),
-    placeAtSpawner: (id, spawnerId) => {
-      const sp = this.getMesh(spawnerId);
-      if (sp) placeSpawnInstance({ tracked: this.tracked, scene: this.scene }, id, sp.absolutePosition.clone());
-    },
-    hideSource: (targetId) => this.setEntityActive(targetId, false),
-    disposeInstance: (id) => this.destroyRuntimeEntity(id),
-  });
+  /** Runtime two-pool spawn queue (Spawner feature). Empty until Play registers spawners. */
+  private spawnPool: SpawnPool;
   /** Loads/instantiates external 3D model assets (kind:'model'). */
   private models: ModelLoader;
   /** Asset definitions by id, kept in sync from the store (see setAssetLibrary). */
@@ -118,34 +105,22 @@ export class SceneManager {
     this.mode = mode;
     this.editorCanvas = canvas;
     this.isPlayingFn = isPlaying;
-    // Multi-view: the engine renders to a hidden master WebGL canvas and copies into
-    // each registered view; the visible editor canvas is registered below. The generous
-    // default size avoids a low-res first frame before per-view dprResize runs.
-    this.master = document.createElement('canvas');
-    this.master.width = 2560;
-    this.master.height = 1440;
-
-    this.engine = new Engine(this.master, true, { preserveDrawingBuffer: true, stencil: true });
-    // Native-pixel-ratio rendering (capped 2×) via hardwareScalingLevel — multi-view
-    // resize and the picking ray both divide by it, keeping resolution + clicks in sync.
-    const dpr = typeof window !== 'undefined' ? window.devicePixelRatio : 1;
-    this.engine.setHardwareScalingLevel(hardwareScalingLevelFor(dpr));
-    this.scene = new Scene(this.engine);
-    this.scene.clearColor = new Color4(0.05, 0.06, 0.09, 1);
-    // Selection picks on pointer-DOWN only (see onPointerObservable), so skip
-    // Babylon's default raycast on every pointer-move — a real saving while the
-    // cursor moves over the viewport.
-    this.scene.skipPointerMovePicking = true;
-
-    this.physics = new PhysicsManager({
+    // Engine + scene + shared subsystem managers (physics/effects/models/rig). See sceneBootstrap.
+    const core = createSceneCore(this.mode, (id) => this.getMesh(id), (id) => this.tracked.get(id)?.meshKind);
+    this.master = core.master;
+    this.engine = core.engine;
+    this.scene = core.scene;
+    this.physics = core.physics;
+    this.effects = core.effects;
+    this.models = core.models;
+    this.rigPlayer = core.rigPlayer;
+    this.spawnPool = createSpawnPool({
+      tracked: this.tracked,
       scene: this.scene,
-      mode: this.mode,
+      setEntityActive: (id, on) => this.setEntityActive(id, on),
       getMesh: (id) => this.getMesh(id),
-      getMeshKind: (id) => this.tracked.get(id)?.meshKind,
+      destroyRuntimeEntity: (id) => this.destroyRuntimeEntity(id),
     });
-    this.effects = new EffectsManager({ scene: this.scene, getMesh: (id) => this.getMesh(id) });
-    this.models = new ModelLoader(this.scene);
-    this.rigPlayer = new RigPlayer(this.scene, (id) => this.getMesh(id));
 
     this.editorCamera = createEditorCamera(this.scene, this.mode, canvas);
     this.gameCamera = createGameCamera(this.scene, this.mode, this.CAM2D_Z);
@@ -444,24 +419,9 @@ export class SceneManager {
   }
 
   // ----- Spawner pools (runtime; see SpawnPool) -----
-  /** Register every spawner with a target at Play start: hide each source object into its pool
-   *  and pre-warm as configured. Instances are runtime-only, so Stop discards them. */
+  /** Register every spawner with a target at Play start (see registerSpawners). */
   initSpawners(entities: Entity[]): void {
-    const specs = entities.filter((e) => e.spawner?.targetId);
-    // A spawner's target is pooled (hidden) at Play and only appears via spawn(). That silently
-    // hid players when a Spawner was pointed at them — surface it so it's never a mystery.
-    for (const e of specs) {
-      const t = entities.find((x) => x.id === e.spawner!.targetId);
-      const playerish = t && (t.tag === 'player' || t.scriptIds.length > 0);
-      gameConsole[playerish ? 'warn' : 'info'](
-        'spawner',
-        `"${e.name}" pools "${t?.name ?? e.spawner!.targetId}" — it's hidden until spawned` +
-          (playerish ? '. If this is your controlled object, remove the spawner or retarget it (it won\'t render or be hit by volumes).' : '.'),
-      );
-    }
-    this.spawnPool.register(
-      specs.map((e) => ({ spawnerId: e.id, targetId: e.spawner!.targetId!, prewarm: e.spawner!.prewarm })),
-    );
+    registerSpawners(this.spawnPool, entities);
   }
   /** Tear down all spawned instances (on Stop). */
   resetSpawners(): void {

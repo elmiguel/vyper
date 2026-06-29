@@ -8,6 +8,7 @@ import { EffectsManager } from './EffectsManager';
 import { ModelLoader } from './modelLoader';
 import { RigPlayer } from './RigPlayer';
 import { SpawnPool } from '../runtime/SpawnPool';
+import { createSpawnInstance, placeSpawnInstance } from './spawnerRuntimeOps';
 import { hardwareScalingLevelFor } from './viewResize';
 import type { Tracked } from './sceneSync';
 import { gameConsole } from '@/store/consoleStore';
@@ -58,6 +59,31 @@ export function createSceneCore(
   const rigPlayer = new RigPlayer(scene, getMesh);
 
   return { master, engine, scene, physics, effects, models, rigPlayer };
+}
+
+/** Dependencies the runtime spawn pool needs from its owning SceneManager. */
+export interface SpawnDeps {
+  tracked: Map<string, Tracked>;
+  scene: Scene;
+  setEntityActive: (id: string, on: boolean) => void;
+  getMesh: (id: string) => AbstractMesh | undefined;
+  destroyRuntimeEntity: (id: string) => void;
+}
+
+/** Build the runtime two-pool spawn queue, wiring its Babylon glue (clone/place/hide/dispose)
+ *  to the owning SceneManager. The queue logic itself lives in SpawnPool. */
+export function createSpawnPool(d: SpawnDeps): SpawnPool {
+  return new SpawnPool({
+    createInstance: (targetId, instanceId) =>
+      createSpawnInstance({ tracked: d.tracked, scene: d.scene }, targetId, instanceId),
+    setInstanceActive: (id, on) => d.setEntityActive(id, on),
+    placeAtSpawner: (id, spawnerId) => {
+      const sp = d.getMesh(spawnerId);
+      if (sp) placeSpawnInstance({ tracked: d.tracked, scene: d.scene }, id, sp.absolutePosition.clone());
+    },
+    hideSource: (targetId) => d.setEntityActive(targetId, false),
+    disposeInstance: (id) => d.destroyRuntimeEntity(id),
+  });
 }
 
 /**

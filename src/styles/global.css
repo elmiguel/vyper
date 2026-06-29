@@ -37,7 +37,12 @@ html, body, #root {
   height: 100%;
   background: var(--bg-0);
   color: var(--text);
-  overflow: hidden;
+  /* `clip`, not `hidden`: both hide the scrollbar, but `hidden` still leaves the
+     element programmatically scrollable — so focusing a control inside a panel
+     (e.g. activating the Settings panel) let the browser scrollIntoView-scroll the
+     app shell, shoving the top toolbar off-screen. `clip` is not a scroll container,
+     so the shell can never scroll; inner .panel-scroll areas keep their own overflow. */
+  overflow: clip;
 }
 
 /* Ambient synthwave backdrop: dual neon haze + slow-drifting grid + scanlines. */
@@ -85,11 +90,7 @@ input { font-family: inherit; color: var(--text); }
 
 /* ---------- Layout shell ---------- */
 .editor-root { display: flex; flex-direction: column; height: 100%; }
-/* Own stacking context (z-index:0) so dockview's overflow-dropdown popover
-   (z-index: var(--dv-overlay-z-index) = 999) is trapped inside the dock body and
-   can't paint over the app toolbar (z-index:50). Without this the popover's 999
-   competes in the root context and hides the top toolbar when opened. */
-.editor-body { flex: 1; min-height: 0; position: relative; z-index: 0; }
+.editor-body { flex: 1; min-height: 0; }
 
 /* ---------- Dockable workspace (dockview) ---------- */
 .vyper-dock { height: 100%; }
