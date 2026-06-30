@@ -58,6 +58,17 @@ describe('cameraApi.followThirdPerson', () => {
     expect(pos.y).toBeGreaterThan(4); // pitched-down look raises the camera
   });
 
+  it('sets a gameplay FOV (so the look preset’s wide cinematic FOV cannot fish-eye it)', () => {
+    const { cam } = makeFakeCam();
+    const api = makeCameraApi(cam, noScene, (t) => String(t));
+    api.followThirdPerson({ position: { x: 0, y: 1, z: 0 } }, { distance: 6, height: 3 });
+    // Default 60° in radians.
+    expect((cam as unknown as { fov: number }).fov).toBeCloseTo((60 * Math.PI) / 180, 4);
+    // Honours an explicit override.
+    api.followThirdPerson({ position: { x: 0, y: 1, z: 0 } }, { distance: 6, height: 3, fov: 50 });
+    expect((cam as unknown as { fov: number }).fov).toBeCloseTo((50 * Math.PI) / 180, 4);
+  });
+
   it('falls back to a sane distance when given a degenerate one (never collapses to first-person)', () => {
     const { cam, pos, target } = makeFakeCam();
     const api = makeCameraApi(cam, noScene, (t) => String(t));

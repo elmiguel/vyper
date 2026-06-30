@@ -80,7 +80,11 @@ below the gallery and shows in the main Scene/Game viewports.
   rebuild after the grade is set leaves colour-curves enabled-but-unbound, which
   renders the frame grayscale. Configuring the grade last avoids that.
 - **FOV** — `fov` (degrees) sets the game camera's vertical field of view for the
-  wide-angle look.
+  wide-angle look. NB: the first/third-person controller assets **own their FOV**
+  (their own `fov` field, set via `cameraApi.attachFirstPerson`/`followThirdPerson`)
+  — a controlled gameplay camera shouldn't inherit the cinematic look FOV, or a
+  wide preset (e.g. 75°) fish-eyes the player view. The look FOV applies to static /
+  uncontrolled cameras and the editor preview.
 - **God rays** — `GodRayController` (in `RenderPipeline.ts`) owns one
   `VolumetricLightScatteringPostProcess` per camera, all pointing at a shared
   emissive "sun" billboard placed far along the scene's directional light's reverse

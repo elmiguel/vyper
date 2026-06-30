@@ -110,6 +110,7 @@ export const extraSpecs: Record<string, NodeSpec> = {
       { id: 'jumpHeight', label: 'jump', kind: 'number', default: 1.2 },
       { id: 'mouseSensitivity', label: 'look', kind: 'number', default: 0.002 },
       { id: 'eyeHeight', label: 'eye', kind: 'number', default: 1.6 },
+      { id: 'fov', label: 'fov°', kind: 'number', default: 75 },
     ],
   },
   'asset/thirdPersonController': {
@@ -128,6 +129,7 @@ export const extraSpecs: Record<string, NodeSpec> = {
       { id: 'mouseSensitivity', label: 'look', kind: 'number', default: 0.003 },
       { id: 'cameraDistance', label: 'dist', kind: 'number', default: 6 },
       { id: 'cameraHeight', label: 'height', kind: 'number', default: 3 },
+      { id: 'fov', label: 'fov°', kind: 'number', default: 60 },
     ],
   },
 

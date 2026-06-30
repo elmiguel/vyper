@@ -3,6 +3,10 @@ import type { UniversalCamera } from '@babylonjs/core/Cameras/universalCamera';
 import type { SceneManager } from '@/babylon/SceneManager';
 import { V } from './vector';
 
+/** A finite degree value, or the fallback (guards NaN/undefined from cleared fields). */
+const degOrDefault = (deg: number | undefined, fallback: number) =>
+  Number.isFinite(deg) ? (deg as number) : fallback;
+
 /**
  * Camera helper handed to controller scripts. Wraps the game `UniversalCamera`
  * with yaw/pitch look state and first/third-person placement. One instance is
@@ -52,8 +56,11 @@ export function makeCameraApi(cam: UniversalCamera, sceneManager: SceneManager, 
       return new V(Math.cos(yaw), 0, -Math.sin(yaw)).normalize();
     },
     /** Place the camera at the entity's eye and aim it with yaw/pitch. */
-    attachFirstPerson(ent: { position: { x: number; y: number; z: number } }, opts?: { eyeHeight?: number }) {
+    attachFirstPerson(ent: { position: { x: number; y: number; z: number } }, opts?: { eyeHeight?: number; fov?: number }) {
       const eye = opts?.eyeHeight ?? 1.6;
+      // A controlled camera owns its FOV — otherwise the active look preset's
+      // cinematic FOV (e.g. a wide 75°) bleeds in and the view reads fish-eyed.
+      cam.fov = (degOrDefault(opts?.fov, 75) * Math.PI) / 180;
       cam.rotation.set(pitch, yaw, 0);
       cam.position.set(ent.position.x, ent.position.y + eye, ent.position.z);
     },
@@ -67,12 +74,15 @@ export function makeCameraApi(cam: UniversalCamera, sceneManager: SceneManager, 
      *  person / show nothing. */
     followThirdPerson(
       ent: { position: { x: number; y: number; z: number } },
-      opts?: { distance?: number; height?: number },
+      opts?: { distance?: number; height?: number; fov?: number },
     ) {
       // Guard against a degenerate distance (0, negative, or NaN from a cleared
       // field) — without this the camera collapses onto the entity.
       const dist = Number.isFinite(opts?.distance) && (opts!.distance as number) > 0 ? (opts!.distance as number) : 6;
       const height = Number.isFinite(opts?.height) ? (opts!.height as number) : 3;
+      // A controlled camera owns its FOV, so the active look preset's cinematic
+      // FOV (e.g. a wide 75°) can't bleed in and fish-eye the third-person view.
+      cam.fov = (degOrDefault(opts?.fov, 60) * Math.PI) / 180;
       const cp = Math.cos(pitch);
       const tx = ent.position.x;
       const ty = ent.position.y;

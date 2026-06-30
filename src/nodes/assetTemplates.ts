@@ -85,7 +85,7 @@ export const ASSET_TEMPLATES: Record<string, AssetTemplate> = {
         `  // First-Person Controller — setup`,
         `  entity.usePhysics({ type: 'character', shape: 'capsule', mass: 1 });`,
         `  input.lockPointer();`,
-        `  camera.attachFirstPerson(entity, { eyeHeight: ${n(f, 'eyeHeight', 1.6)} });`,
+        `  camera.attachFirstPerson(entity, { eyeHeight: ${n(f, 'eyeHeight', 1.6)}, fov: ${n(f, 'fov', 75)} });`,
       ].join('\n') + '\n',
     onUpdate: (f) =>
       [
@@ -94,7 +94,7 @@ export const ASSET_TEMPLATES: Record<string, AssetTemplate> = {
         `  camera.yaw   += input.mouse.dx * ${n(f, 'mouseSensitivity', 0.002)};`,
         `  camera.pitch += input.mouse.dy * ${n(f, 'mouseSensitivity', 0.002)};`,
         ...physicsLocomotion(f),
-        `  camera.attachFirstPerson(entity, { eyeHeight: ${n(f, 'eyeHeight', 1.6)} });`,
+        `  camera.attachFirstPerson(entity, { eyeHeight: ${n(f, 'eyeHeight', 1.6)}, fov: ${n(f, 'fov', 75)} });`,
       ].join('\n') + '\n',
   },
 
@@ -141,7 +141,7 @@ export const ASSET_TEMPLATES: Record<string, AssetTemplate> = {
         `  camera.yaw   += input.mouse.dx * ${n(f, 'mouseSensitivity', 0.003)};`,
         `  camera.pitch += input.mouse.dy * ${n(f, 'mouseSensitivity', 0.003)};`,
         ...physicsLocomotion(f),
-        `  camera.followThirdPerson(entity, { distance: ${n(f, 'cameraDistance', 6)}, height: ${n(f, 'cameraHeight', 3)} });`,
+        `  camera.followThirdPerson(entity, { distance: ${n(f, 'cameraDistance', 6)}, height: ${n(f, 'cameraHeight', 3)}, fov: ${n(f, 'fov', 60)} });`,
       ].join('\n') + '\n',
   },
 };
